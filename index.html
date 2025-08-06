@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CELENGAN - Bukan Sekedar Celeng Biasa</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      // Flicker-free dark mode
+      (function() {
+        try {
+          var theme = localStorage.getItem('celengan-app:theme');
+          if (theme) {
+            document.documentElement.classList.add(JSON.parse(theme));
+          } else {
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+              document.documentElement.classList.add('dark');
+            } else {
+              document.documentElement.classList.add('light');
+            }
+          }
+        } catch (_) {
+          document.documentElement.classList.add('light');
+        }
+      })();
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.1.1/",
+    "react": "https://esm.sh/react@^19.1.1",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.1/",
+    "html2canvas": "https://esm.sh/html2canvas@^1.4.1",
+    "recharts": "https://esm.sh/recharts@^2.12.7",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2"
+  }
+}
+</script>
+<style>
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes toast-leave {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+}
+
+.animate-toast-enter {
+  animation: toast-enter 0.35s cubic-bezier(0.21, 1.02, 0.73, 1) forwards;
+}
+
+.animate-toast-leave {
+  animation: toast-leave 0.4s cubic-bezier(0.06, 0.71, 0.55, 1) forwards;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Responsive Tables */
+@media (max-width: 768px) {
+  .responsive-table thead {
+    display: none;
+  }
+  .responsive-table tr {
+    display: block;
+    margin-bottom: 1rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    overflow: hidden;
+  }
+  .responsive-table, .responsive-table tbody, .responsive-table tr, .responsive-table td, .responsive-table th {
+    display: block;
+  }
+  .responsive-table td, .responsive-table th[scope="row"] {
+    padding: 0.75rem 1rem;
+    border-bottom-width: 1px;
+    border-style: solid;
+  }
+  .responsive-table td {
+    text-align: right;
+    position: relative;
+    padding-left: 50%;
+  }
+  .responsive-table td::before {
+    content: attr(data-label);
+    position: absolute;
+    left: 1rem;
+    width: 45%;
+    padding-right: 0.5rem;
+    white-space: nowrap;
+    text-align: left;
+    font-weight: 600;
+  }
+  .responsive-table th[scope="row"] {
+    font-size: 1.125rem; /* text-lg */
+    font-weight: 700;
+  }
+
+  /* Dark mode specific table styles */
+  html.dark .responsive-table tr {
+    background-color: #1e293b; /* dark:bg-slate-800 */
+    border: 1px solid #334155; /* dark:border-slate-700 */
+  }
+  html.dark .responsive-table td, html.dark .responsive-table th[scope="row"] {
+    border-color: #334155; /* dark:border-slate-700 */
+  }
+  html.dark .responsive-table th[scope="row"] {
+    background-color: #334155; /* dark:bg-slate-700 */
+  }
+  html.dark .responsive-table td::before {
+    color: #94a3b8; /* dark:text-slate-400 */
+  }
+
+  /* Light mode specific table styles */
+  html.light .responsive-table tr {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+  }
+  html.light .responsive-table td, html.light .responsive-table th[scope="row"] {
+    border-color: #e2e8f0;
+  }
+  html.light .responsive-table th[scope="row"] {
+    background-color: #f8fafc; /* bg-slate-50 */
+  }
+  html.light .responsive-table td::before {
+    color: #475569; /* text-slate-600 */
+  }
+  .responsive-table td:last-of-type {
+    border-bottom: 0;
+  }
+}
+
+@media print {
+  body {
+    background-color: white !important;
+  }
+  body * {
+    visibility: hidden;
+  }
+  .printable-area, .printable-area * {
+    visibility: visible;
+  }
+  .printable-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 20px;
+    margin: 0;
+  }
+  .printable-area *, .printable-area h1, .printable-area h2, .printable-area p, .printable-area span, .printable-area th, .printable-area td {
+    color: black !important;
+    background-color: transparent !important;
+  }
+  .no-print, .no-print * {
+    visibility: hidden !important;
+    display: none !important;
+  }
+}
+::selection {
+  background-color: #ec4899; /* pink-500 */
+  color: white;
+}
+</style>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-gray-100">
+    <div id="root"></div>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
