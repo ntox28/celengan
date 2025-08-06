@@ -47,40 +47,46 @@ const DashboardComponent: React.FC<DashboardProps> = (props) => {
   }, [userRole]);
 
   const [activeView, setActiveView] = useState(visibleMenuItems[0]?.name || 'Dashboard');
-  
+
   const handleMenuClick = (viewName: string) => {
     setActiveView(viewName);
-    if(window.innerWidth < 1024) {
-        setIsSidebarOpen(false);
+    if (window.innerWidth < 1024) {
+      setIsSidebarOpen(false);
     }
-  }
-  
+  };
+
   React.useEffect(() => {
     const isCurrentViewVisible = visibleMenuItems.some(item => item.name === activeView);
     if (!isCurrentViewVisible) {
-        setActiveView(visibleMenuItems[0]?.name || 'Dashboard');
+      setActiveView(visibleMenuItems[0]?.name || 'Dashboard');
     }
   }, [userRole, activeView, visibleMenuItems]);
-
 
   return (
     <div className="flex h-screen bg-gray-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200">
       <ToastContainer />
+
       {/* Overlay for mobile */}
       {isSidebarOpen && (
-          <div 
-              className="fixed inset-0 bg-black/50 z-20 lg:hidden"
-              onClick={() => setIsSidebarOpen(false)}
-          ></div>
+        <div
+          className="fixed inset-0 bg-black/50 z-20 lg:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        ></div>
       )}
+
       {/* Sidebar */}
       <aside className={`fixed lg:relative inset-y-0 left-0 w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex-col z-30 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:flex`}>
         <div className="h-20 flex items-center justify-center border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-pink-600">CELENGAN</h1>
-            <p className="text-xs italic text-slate-500 dark:text-slate-400 -mt-1">Bukan Sekedar Celeng Biasa</p>
+            <img
+              src="/header.png"
+              alt="Logo Celengan"
+              className="h-10 mx-auto object-contain"
+            />
+            <p className="text-xs italic text-slate-500 dark:text-slate-400 mt-1">Bukan Sekedar Celeng Biasa</p>
           </div>
         </div>
+
         <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto no-scrollbar">
           {visibleMenuItems.map((item) => {
             const Icon = item.icon;
@@ -105,24 +111,25 @@ const DashboardComponent: React.FC<DashboardProps> = (props) => {
             );
           })}
         </nav>
+
         <div className="px-4 py-6 border-t border-slate-200 dark:border-slate-700">
-            <ThemeToggle />
-            <button
-                onClick={onLogout}
-                className="flex items-center w-full px-4 py-3 mt-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-red-50/80 dark:hover:bg-red-900/40 hover:text-red-600 dark:hover:text-red-400 transition-colors duration-200"
-            >
-                <LogoutIcon className="h-6 w-6 mr-4" />
-                <span className="font-medium">Logout</span>
-            </button>
+          <ThemeToggle />
+          <button
+            onClick={onLogout}
+            className="flex items-center w-full px-4 py-3 mt-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-red-50/80 dark:hover:bg-red-900/40 hover:text-red-600 dark:hover:text-red-400 transition-colors duration-200"
+          >
+            <LogoutIcon className="h-6 w-6 mr-4" />
+            <span className="font-medium">Logout</span>
+          </button>
         </div>
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col">
-        <MainContent 
-            {...props}
-            activeView={activeView} 
-            onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+        <MainContent
+          {...props}
+          activeView={activeView}
+          onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         />
       </main>
     </div>
