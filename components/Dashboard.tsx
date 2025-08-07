@@ -11,7 +11,7 @@ import CustomersIcon from './icons/CustomersIcon';
 import UserIcon from './icons/UserIcon';
 import SettingsIcon from './icons/SettingsIcon';
 import LogoutIcon from './icons/LogoutIcon';
-import { User as AuthUser } from '../lib/supabaseClient';
+import { EmployeePosition, User as AuthUser } from '../lib/supabaseClient';
 import ThemeToggle from './ThemeToggle';
 import ToastContainer from './toasts/ToastContainer';
 import { useAppData } from '../hooks/useAppData';
@@ -38,9 +38,14 @@ const allMenuItems = [
 ];
 
 const DashboardComponent: React.FC<DashboardProps> = (props) => {
-  const { user, onLogout } = props;
+  const { user, onLogout, employees } = props;
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const userRole = user.app_metadata?.userrole || 'Kasir';
+  const employeeProfile = useMemo(() => employees.find(e => e.user_id === user.id), [employees, user.id]);
+  
+  // The 'employees' table is the source of truth for the user's position.
+  // We fall back to user_metadata only if the profile isn't found, which might happen on the very first login.
+  // 'Kasir' is the final default.
+  const userRole = employeeProfile?.position || (user.user_metadata as { userrole?: EmployeePosition })?.userrole || 'Kasir';
   const localStorageKey = `celengan-app:activeView:${user.id}`;
 
   const visibleMenuItems = useMemo(() => {
@@ -76,7 +81,7 @@ const DashboardComponent: React.FC<DashboardProps> = (props) => {
           // If the current view is not accessible for the new role, reset to the first available one.
           setActiveView(visibleMenuItems[0]?.name || 'Dashboard');
       }
-  }, [visibleMenuItems]);
+  }, [visibleMenuItems, activeView]);
 
 
   const handleMenuClick = (viewName: string) => {

@@ -55,8 +55,8 @@ const MainContent: React.FC<MainContentProps> = (props) => {
     onToggleSidebar
   } = props;
   
-  const userRole = user.app_metadata?.userrole || 'Kasir';
   const employee = employees.find(e => e.user_id === user.id);
+  const userRole = employee?.position || (user.user_metadata as any)?.userrole || 'Kasir';
   const displayName = employee ? employee.name : (user.email || 'Pengguna');
   const avatarSeed = displayName;
 
