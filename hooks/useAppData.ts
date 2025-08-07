@@ -298,8 +298,19 @@ export const useAppData = (user: User | undefined) => {
     const deleteExpense = async (id: number) => deleteRecord('expenses', id, setExpenses, 'Pengeluaran berhasil dihapus.');
 
     const updateNotaSetting = async (settings: NotaSetting) => {
-        const { error: prefixError } = await supabase.from('settings').update({ value: settings.prefix }).eq('key', 'nota_prefix');
-        if (prefixError) { addToast(`Gagal update prefix: ${prefixError.message}`, 'error'); return; }
+        const updates = [
+            supabase.from('settings').update({ value: settings.prefix }).eq('key', 'nota_prefix'),
+            supabase.from('settings').update({ value: settings.start_number_str }).eq('key', 'nota_last_number')
+        ];
+
+        const [prefixResult, numberResult] = await Promise.all(updates);
+
+        if (prefixResult.error || numberResult.error) {
+            const errorMessage = prefixResult.error?.message || numberResult.error?.message;
+            addToast(`Gagal update pengaturan nota: ${errorMessage}`, 'error');
+            return;
+        }
+
         setNotaSetting(settings);
         addToast('Pengaturan nota berhasil diperbarui.', 'success');
     };
@@ -331,8 +342,10 @@ export const useAppData = (user: User | undefined) => {
         
         const lastNumber = parseInt(settingData.value, 10);
         const nextNumber = lastNumber + 1;
+        
         const padding = notaSetting.start_number_str.length > 0 ? notaSetting.start_number_str.length : 1;
-        const newNotaNumber = `${notaSetting.prefix}-${String(nextNumber).padStart(padding, '0')}`;
+        const newPaddedNumberStr = String(nextNumber).padStart(padding, '0');
+        const newNotaNumber = `${notaSetting.prefix}-${newPaddedNumberStr}`;
         
         // 2. Insert order
         const { order_items, ...orderPayload } = orderData;
@@ -345,15 +358,15 @@ export const useAppData = (user: User | undefined) => {
         const { error: itemsError } = await supabase.from('order_items').insert(itemsPayload);
         if (itemsError) { addToast(`Gagal menyimpan item order: ${itemsError.message}`, 'error'); throw itemsError; }
         
-        // 4. Update last number in settings
-        await supabase.from('settings').update({ value: String(nextNumber) }).eq('key', 'nota_last_number');
+        // 4. Update last number in settings WITH PADDING
+        await supabase.from('settings').update({ value: newPaddedNumberStr }).eq('key', 'nota_last_number');
         
         // 5. Refetch order to display it with items
         const { data: fullOrder, error: fetchError } = await supabase.from('orders').select('*, order_items(*), payments(*)').eq('id', newOrder.id).single();
         if (fetchError) { addToast('Gagal memuat ulang order baru.', 'error'); return; }
         
         setOrders(prev => [...prev, fullOrder as Order]);
-        setNotaSetting(prev => ({ ...prev, start_number_str: String(nextNumber) }));
+        setNotaSetting(prev => ({ ...prev, start_number_str: newPaddedNumberStr }));
         addToast(`Order ${newNotaNumber} berhasil ditambahkan.`, 'success');
     };
 
