@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef } from 'react';
 import { Supplier } from '../../lib/supabaseClient';
 import EditIcon from '../icons/EditIcon';
@@ -7,7 +8,7 @@ import Pagination from '../Pagination';
 
 interface SupplierManagementProps {
     suppliers: Supplier[];
-    addSupplier: (data: Omit<Supplier, 'id' | 'created_at'>) => Promise<void>;
+    addSupplier: (data: Omit<Supplier, 'id' | 'created_at'>) => Promise<Supplier>;
     updateSupplier: (id: number, data: Partial<Omit<Supplier, 'id' | 'created_at'>>) => Promise<void>;
     deleteSupplier: (id: number) => Promise<void>;
 }

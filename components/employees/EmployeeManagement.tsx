@@ -1,13 +1,15 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import EditIcon from '../icons/EditIcon';
 import TrashIcon from '../icons/TrashIcon';
 import Pagination from '../Pagination';
 import { useToast } from '../../hooks/useToast';
 import { Employee, EmployeePosition } from '../../lib/supabaseClient';
+import LockIcon from '../icons/LockIcon';
 
 interface EmployeeManagementProps {
     employees: Employee[];
-    addEmployee: (data: Omit<Employee, 'id' | 'created_at'>) => Promise<void>;
+    addEmployee: (data: Omit<Employee, 'id' | 'created_at'>, password: string) => Promise<void>;
     updateEmployee: (id: number, data: Partial<Omit<Employee, 'id' | 'created_at'>>) => Promise<void>;
     deleteEmployee: (id: number) => Promise<void>;
 }
@@ -22,11 +24,11 @@ const getPositionColor = (position: EmployeePosition) => {
     return colors[position] || 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300';
 };
 
-const initialFormData: Omit<Employee, 'id' | 'created_at'> = { name: '', position: 'Kasir', email: '', phone: '', user_id: null };
+const initialFormData: Omit<Employee, 'id' | 'created_at'> & { password?: string } = { name: '', position: 'Kasir', email: '', phone: '', user_id: null, password: '' };
 
 const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, addEmployee, updateEmployee, deleteEmployee }) => {
     const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
-    const [formData, setFormData] = useState<Omit<Employee, 'id' | 'created_at'>>(initialFormData);
+    const [formData, setFormData] = useState<Omit<Employee, 'id' | 'created_at'> & { password?: string }>(initialFormData);
     const [currentPage, setCurrentPage] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
     const { addToast } = useToast();
@@ -44,6 +46,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, addE
             email: employee.email || '',
             phone: employee.phone || '',
             user_id: employee.user_id,
+            password: '',
         });
         formRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
@@ -63,20 +66,23 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, addE
         e.preventDefault();
         setIsLoading(true);
 
-        const employeeData: Omit<Employee, 'id' | 'created_at'> = {
-            ...formData,
-            user_id: editingEmployee ? editingEmployee.user_id : null // user_id is linked from auth, not set here
-        };
-
         try {
             if (editingEmployee) {
+                const { password, ...employeeData } = formData;
                 await updateEmployee(editingEmployee.id, employeeData);
             } else {
-                await addEmployee(employeeData);
+                const { password, ...employeeData } = formData;
+                if (!password || password.length < 6) {
+                    addToast('Password diperlukan dan minimal 6 karakter.', 'error');
+                    setIsLoading(false);
+                    return;
+                }
+                await addEmployee(employeeData, password);
                 handleAddNew();
             }
         } catch (error) {
             console.error("Failed to save employee:", error);
+            // Toast for error is handled within addEmployee/updateEmployee
         } finally {
             setIsLoading(false);
         }
@@ -137,6 +143,12 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, addE
                             <label htmlFor="email" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Email</label>
                             <input type="email" name="email" id="email" value={formData.email || ''} onChange={handleInputChange} className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition duration-300" />
                         </div>
+                        {!editingEmployee && (
+                            <div>
+                                <label htmlFor="password" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Password</label>
+                                <input type="password" name="password" id="password" value={formData.password} onChange={handleInputChange} required minLength={6} className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition duration-300" />
+                            </div>
+                        )}
                         <div>
                             <label htmlFor="phone" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Nomor Telepon</label>
                             <input type="tel" name="phone" id="phone" value={formData.phone || ''} onChange={handleInputChange} className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition duration-300" />

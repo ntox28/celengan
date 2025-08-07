@@ -1,57 +1,40 @@
+
+
 import React, { useState } from 'react';
-import { Bank, Printer, Asset, NotaSetting, Debt, Bahan, Finishing } from '../../lib/supabaseClient';
+import { Bank, Asset, Debt, Bahan, Finishing } from '../../lib/supabaseClient';
 import BankManagement from './BankManagement';
-import PlaceholderSettings from './PlaceholderSettings';
 import BankIcon from '../icons/BankIcon';
-import PrinterIcon from '../icons/PrinterIcon';
 import AssetIcon from '../icons/AssetIcon';
-import PrinterManagement from './PrinterManagement';
 import AssetManagement from './AssetManagement';
-import ReceiptIcon from '../icons/ReceiptIcon';
-import NotaManagement from './NotaManagement';
 import DebtManagement from './DebtManagement';
 import TrendingDownIcon from '../icons/TrendingDownIcon';
 import IngredientsIcon from '../icons/IngredientsIcon';
 import BahanManagement from '../bahan/BahanManagement';
 import FinishingIcon from '../icons/FinishingIcon';
-import FinishingManagement from './FinishingManagement';
 
 interface SettingsProps {
     banks: Bank[];
-    addBank: (data: Omit<Bank, 'id' | 'created_at'>) => void;
-    updateBank: (id: number, data: Partial<Omit<Bank, 'id' | 'created_at'>>) => void;
-    deleteBank: (id: number) => void;
-    printers: Printer[];
-    addPrinter: (data: Omit<Printer, 'id' | 'created_at'>) => void;
-    updatePrinter: (id: number, data: Partial<Omit<Printer, 'id' | 'created_at'>>) => void;
-    deletePrinter: (id: number) => void;
+    addBank: (data: Omit<Bank, 'id' | 'created_at'>) => Promise<Bank>;
+    updateBank: (id: number, data: Partial<Omit<Bank, 'id' | 'created_at'>>) => Promise<void>;
+    deleteBank: (id: number) => Promise<void>;
     assets: Asset[];
-    addAsset: (data: Omit<Asset, 'id' | 'created_at' | 'is_dynamic'>) => void;
-    updateAsset: (id: number, data: Partial<Omit<Asset, 'id' | 'created_at' | 'is_dynamic'>>) => void;
-    deleteAsset: (id: number) => void;
+    addAsset: (data: Omit<Asset, 'id' | 'created_at' | 'is_dynamic'>) => Promise<Asset>;
+    updateAsset: (id: number, data: Partial<Omit<Asset, 'id' | 'created_at' | 'is_dynamic'>>) => Promise<void>;
+    deleteAsset: (id: number) => Promise<void>;
     debts: Debt[];
-    addDebt: (data: Omit<Debt, 'id' | 'created_at'>) => void;
-    updateDebt: (id: number, data: Partial<Omit<Debt, 'id' | 'created_at'>>) => void;
-    deleteDebt: (id: number) => void;
-    notaSetting: NotaSetting;
-    updateNotaSetting: (settings: NotaSetting) => void;
+    addDebt: (data: Omit<Debt, 'id' | 'created_at'>) => Promise<Debt>;
+    updateDebt: (id: number, data: Partial<Omit<Debt, 'id' | 'created_at'>>) => Promise<void>;
+    deleteDebt: (id: number) => Promise<void>;
     bahanList: Bahan[];
-    addBahan: (data: Omit<Bahan, 'id' | 'created_at'>) => void;
-    updateBahan: (id: number, data: Partial<Omit<Bahan, 'id' | 'created_at'>>) => void;
-    deleteBahan: (id: number) => void;
-    finishings: Finishing[];
-    addFinishing: (data: Omit<Finishing, 'id' | 'created_at'>) => void;
-    updateFinishing: (id: number, data: Partial<Omit<Finishing, 'id' | 'created_at'>>) => void;
-    deleteFinishing: (id: number) => void;
+    addBahan: (data: Omit<Bahan, 'id' | 'created_at' | 'stock_qty'>) => Promise<Bahan>;
+    updateBahan: (id: number, data: Partial<Omit<Bahan, 'id' | 'created_at'>>) => Promise<void>;
+    deleteBahan: (id: number) => Promise<void>;
 }
 
 const subMenus = [
     { key: 'cash-bank', label: 'Sumber Dana', icon: BankIcon },
-    { key: 'printer', label: 'Printer', icon: PrinterIcon },
     { key: 'assets', label: 'Aset', icon: AssetIcon },
-    { key: 'nota', label: 'Nota', icon: ReceiptIcon },
     { key: 'bahan', label: 'Bahan', icon: IngredientsIcon },
-    { key: 'finishing', label: 'Finishing', icon: FinishingIcon },
     { key: 'debt', label: 'Hutang Perusahaan', icon: TrendingDownIcon },
 ];
 
@@ -59,28 +42,19 @@ const SettingsManagement: React.FC<SettingsProps> = (props) => {
     const [activeSubMenu, setActiveSubMenu] = useState('cash-bank');
     const { 
         banks, addBank, updateBank, deleteBank, 
-        printers, addPrinter, updatePrinter, deletePrinter,
         assets, addAsset, updateAsset, deleteAsset,
         debts, addDebt, updateDebt, deleteDebt,
-        notaSetting, updateNotaSetting,
         bahanList, addBahan, updateBahan, deleteBahan,
-        finishings, addFinishing, updateFinishing, deleteFinishing
     } = props;
 
     const renderContent = () => {
         switch (activeSubMenu) {
             case 'cash-bank':
                 return <BankManagement banks={banks} addBank={addBank} updateBank={updateBank} deleteBank={deleteBank} />;
-            case 'printer':
-                return <PrinterManagement printers={printers} addPrinter={addPrinter} updatePrinter={updatePrinter} deletePrinter={deletePrinter} />;
             case 'assets':
                 return <AssetManagement assets={assets} addAsset={addAsset} updateAsset={updateAsset} deleteAsset={deleteAsset} />;
-            case 'nota':
-                return <NotaManagement settings={notaSetting} onUpdate={updateNotaSetting} />;
             case 'bahan':
                 return <BahanManagement bahanList={bahanList} addBahan={addBahan} updateBahan={updateBahan} deleteBahan={deleteBahan} />;
-            case 'finishing':
-                return <FinishingManagement finishings={finishings} addFinishing={addFinishing} updateFinishing={updateFinishing} deleteFinishing={deleteFinishing} />;
             case 'debt':
                 return <DebtManagement debts={debts} addDebt={addDebt} updateDebt={updateDebt} deleteDebt={deleteDebt} />;
             default:

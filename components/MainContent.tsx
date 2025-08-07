@@ -1,3 +1,5 @@
+
+
 import React from 'react';
 import CustomerManagement from './customers/CustomerManagement';
 import { User as AuthUser } from '../lib/supabaseClient';
@@ -43,7 +45,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
     orders, addOrder, updateOrder, deleteOrder, addPaymentToOrder, updateOrderStatus, updateOrderItemStatus,
     expenses, addExpense, updateExpense, deleteExpense,
     banks, addBank, updateBank, deleteBank,
-    printers, addPrinter, updatePrinter, deletePrinter,
+    printers,
     assets, addAsset, updateAsset, deleteAsset,
     debts, addDebt, updateDebt, deleteDebt,
     notaSetting, updateNotaSetting,
@@ -68,6 +70,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
       case 'Order':
         return <OrderManagement 
                     customers={customers} 
+                    addCustomer={addCustomer}
                     bahanList={bahanList} 
                     orders={orders} 
                     loggedInUser={user} 
@@ -77,6 +80,11 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     updateOrderStatus={updateOrderStatus}
                     printers={printers}
                     finishings={finishings}
+                    addFinishing={addFinishing}
+                    updateFinishing={updateFinishing}
+                    deleteFinishing={deleteFinishing}
+                    notaSetting={notaSetting}
+                    updateNotaSetting={updateNotaSetting}
                 />;
       case 'Produksi':
         return <ProductionManagement 
@@ -142,10 +150,6 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     addBank={addBank}
                     updateBank={updateBank}
                     deleteBank={deleteBank}
-                    printers={printers}
-                    addPrinter={addPrinter}
-                    updatePrinter={updatePrinter}
-                    deletePrinter={deletePrinter}
                     assets={assets}
                     addAsset={addAsset}
                     updateAsset={updateAsset}
@@ -154,16 +158,10 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     addDebt={addDebt}
                     updateDebt={updateDebt}
                     deleteDebt={deleteDebt}
-                    notaSetting={notaSetting}
-                    updateNotaSetting={updateNotaSetting}
                     bahanList={bahanList}
                     addBahan={addBahan}
                     updateBahan={updateBahan}
                     deleteBahan={deleteBahan}
-                    finishings={finishings}
-                    addFinishing={addFinishing}
-                    updateFinishing={updateFinishing}
-                    deleteFinishing={deleteFinishing}
                 />;
       default:
         return <WelcomeContent user={user} activeView={activeView} />;

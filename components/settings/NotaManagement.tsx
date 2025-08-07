@@ -5,7 +5,7 @@ import { useToast } from '../../hooks/useToast';
 
 interface NotaManagementProps {
     settings: NotaSetting;
-    onUpdate: (settings: NotaSetting) => void;
+    onUpdate: (settings: NotaSetting) => Promise<void>;
 }
 
 const NotaManagement: React.FC<NotaManagementProps> = ({ settings, onUpdate }) => {
@@ -22,12 +22,16 @@ const NotaManagement: React.FC<NotaManagementProps> = ({ settings, onUpdate }) =
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
-        onUpdate(formData);
-        // We call the toast directly from the hook which already shows a success message.
-        setIsLoading(false);
+        try {
+            await onUpdate(formData);
+        } catch (error) {
+            console.error("Failed to update nota settings:", error);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const exampleNota = `${formData.prefix}-${formData.start_number_str}`;

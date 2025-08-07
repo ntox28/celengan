@@ -17,7 +17,7 @@ const formatCurrency = (value: number) => {
 
 interface BahanManagementProps {
     bahanList: Bahan[];
-    addBahan: (data: Omit<Bahan, 'id' | 'created_at' | 'stock_qty'>) => Promise<void>;
+    addBahan: (data: Omit<Bahan, 'id' | 'created_at' | 'stock_qty'>) => Promise<Bahan>;
     updateBahan: (id: number, data: Partial<Omit<Bahan, 'id' | 'created_at'>>) => Promise<void>;
     deleteBahan: (id: number) => Promise<void>;
 }

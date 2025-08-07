@@ -1,13 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import EditIcon from '../icons/EditIcon';
 import TrashIcon from '../icons/TrashIcon';
 import Pagination from '../Pagination';
 import { useToast } from '../../hooks/useToast';
 import { Customer, CustomerLevel } from '../../lib/supabaseClient';
+import SearchIcon from '../icons/SearchIcon';
 
 interface CustomerManagementProps {
     customers: Customer[];
-    addCustomer: (data: Omit<Customer, 'id' | 'created_at'>) => Promise<void>;
+    addCustomer: (data: Omit<Customer, 'id' | 'created_at'>) => Promise<Customer>;
     updateCustomer: (id: number, data: Partial<Omit<Customer, 'id' | 'created_at'>>) => Promise<void>;
     deleteCustomer: (id: number) => Promise<void>;
 }
@@ -28,14 +30,31 @@ const initialFormData: Omit<Customer, 'id' | 'created_at'> = { name: '', email: 
 const CustomerManagement: React.FC<CustomerManagementProps> = ({ customers, addCustomer, updateCustomer, deleteCustomer }) => {
     const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
     const [formData, setFormData] = useState(initialFormData);
+    const [searchQuery, setSearchQuery] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
     const { addToast } = useToast();
     const ITEMS_PER_PAGE = 10;
     const formRef = useRef<HTMLDivElement>(null);
+    
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery]);
 
-    const totalPages = Math.ceil(customers.length / ITEMS_PER_PAGE);
-    const currentCustomers = customers.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+    const filteredCustomers = useMemo(() => {
+        if (!searchQuery) {
+            return customers;
+        }
+        const lowercasedQuery = searchQuery.toLowerCase();
+        return customers.filter(customer =>
+            customer.name.toLowerCase().includes(lowercasedQuery) ||
+            customer.email.toLowerCase().includes(lowercasedQuery) ||
+            customer.phone.toLowerCase().includes(lowercasedQuery)
+        );
+    }, [customers, searchQuery]);
+
+    const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE);
+    const currentCustomers = filteredCustomers.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
     const handleEdit = (customer: Customer) => {
         setEditingCustomer(customer);
@@ -159,7 +178,21 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ customers, addC
 
             {/* Table Column */}
             <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col h-full">
-                <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-6">Daftar Pelanggan</h2>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                    <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Daftar Pelanggan</h2>
+                    <div className="relative w-full sm:w-auto sm:max-w-xs">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <SearchIcon className="h-5 w-5 text-slate-400" />
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Cari pelanggan..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 bg-slate-100 dark:bg-slate-700/50 border border-transparent focus:border-pink-500 rounded-md text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-pink-500 transition duration-300"
+                        />
+                    </div>
+                </div>
                 <div className="flex-1 overflow-y-auto -mx-6 px-6">
                     <table className="w-full text-sm text-left text-slate-700 dark:text-slate-300 responsive-table">
                         <thead className="text-xs text-slate-500 dark:text-slate-400 uppercase bg-slate-50 dark:bg-slate-700/50 sticky top-0 backdrop-blur-sm">
@@ -195,6 +228,11 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ customers, addC
                             ))}
                         </tbody>
                     </table>
+                     {filteredCustomers.length === 0 && (
+                        <div className="text-center py-10">
+                            <p className="text-slate-500">Tidak ada pelanggan yang cocok dengan pencarian '{searchQuery}'.</p>
+                        </div>
+                    )}
                 </div>
                 <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
             </div>

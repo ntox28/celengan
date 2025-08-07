@@ -1,14 +1,20 @@
+
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import EditIcon from '../icons/EditIcon';
 import TrashIcon from '../icons/TrashIcon';
 import PrintIcon from '../icons/PrintIcon';
-import { Customer, CustomerLevel, Bahan, Order, OrderItem, User as AuthUser, ProductionStatus, OrderStatus, Printer, Finishing } from '../../lib/supabaseClient';
+import { Customer, CustomerLevel, Bahan, Order, OrderItem, User as AuthUser, ProductionStatus, OrderStatus, Printer, Finishing, OrderRow, NotaSetting } from '../../lib/supabaseClient';
 import ChevronDownIcon from '../icons/ChevronDownIcon';
 import Pagination from '../Pagination';
 import FilterBar from '../FilterBar';
 import { useToast } from '../../hooks/useToast';
 import SPK from './SPK';
 import PlayCircleIcon from '../icons/PlayCircleIcon';
+import SettingsIcon from '../icons/SettingsIcon';
+import NotaManagement from '../settings/NotaManagement';
+import FinishingManagement from '../settings/FinishingManagement';
+import UserPlusIcon from '../icons/UserPlusIcon';
 
 type LocalOrderItem = {
     local_id: number;
@@ -23,7 +29,7 @@ type LocalOrderItem = {
     finishing_id: number | null;
 };
 
-type LocalOrder = Omit<Order, 'id' | 'created_at' | 'order_items' | 'payments'> & { order_items: LocalOrderItem[] };
+type LocalOrder = Omit<OrderRow, 'id' | 'created_at'> & { order_items: LocalOrderItem[] };
 
 const formatDate = (isoDate: string) => {
     return new Date(isoDate).toLocaleDateString('id-ID', {
@@ -70,7 +76,7 @@ const getPriceForCustomer = (bahan: Bahan, level: CustomerLevel): number => {
     }
 };
 
-const calculateTotal = (order: Order | LocalOrder, customers: Customer[], bahanList: Bahan[]): number => {
+const calculateTotal = (order: { pelanggan_id: number; order_items: Array<{ bahan_id: number; panjang: number | string | null; lebar: number | string | null; qty: number; }> }, customers: Customer[], bahanList: Bahan[]): number => {
     const customer = customers.find(c => c.id === order.pelanggan_id);
     if (!customer) return 0;
 
@@ -79,8 +85,8 @@ const calculateTotal = (order: Order | LocalOrder, customers: Customer[], bahanL
         if (!bahan || !item.bahan_id) return total;
 
         const price = getPriceForCustomer(bahan, customer.level);
-        const p = parseFloat(String(item.panjang).replace(',', '.')) || 0;
-        const l = parseFloat(String(item.lebar).replace(',', '.')) || 0;
+        const p = parseFloat(String(item.panjang || '0').replace(',', '.')) || 0;
+        const l = parseFloat(String(item.lebar || '0').replace(',', '.')) || 0;
         const itemArea = p > 0 && l > 0 ? p * l : 1;
         const itemTotal = price * itemArea * item.qty;
         return total + itemTotal;
@@ -89,23 +95,112 @@ const calculateTotal = (order: Order | LocalOrder, customers: Customer[], bahanL
 
 interface OrderManagementProps {
     customers: Customer[];
+    addCustomer: (data: Omit<Customer, 'id' | 'created_at'>) => Promise<Customer>;
     bahanList: Bahan[];
     orders: Order[];
     printers: Printer[];
     finishings: Finishing[];
+    addFinishing: (data: Omit<Finishing, 'id' | 'created_at'>) => Promise<Finishing>;
+    updateFinishing: (id: number, data: Partial<Omit<Finishing, 'id' | 'created_at'>>) => Promise<void>;
+    deleteFinishing: (id: number) => Promise<void>;
     loggedInUser: AuthUser;
-    addOrder: (orderData: Omit<Order, 'id' | 'created_at' | 'order_items' | 'payments' | 'no_nota'> & { order_items: Omit<OrderItem, 'id'|'created_at'|'order_id'>[] }) => Promise<void>;
-    updateOrder: (id: number, orderData: Partial<Omit<Order, 'id' | 'created_at' | 'payments' | 'order_items'>> & { order_items?: Omit<OrderItem, 'id'|'created_at'|'order_id'>[] }) => Promise<void>;
+    addOrder: (orderData: Omit<OrderRow, 'id' | 'created_at' | 'no_nota'> & { order_items: Omit<OrderItem, 'id'|'created_at'|'order_id'>[] }) => Promise<void>;
+    updateOrder: (id: number, orderData: Partial<Omit<OrderRow, 'id' | 'created_at'>> & { order_items?: Omit<OrderItem, 'id'|'created_at'|'order_id'>[] }) => Promise<void>;
     deleteOrder: (id: number) => Promise<void>;
     updateOrderStatus: (orderId: number, status: OrderStatus, pelaksana_id?: string | null) => Promise<void>;
+    notaSetting: NotaSetting;
+    updateNotaSetting: (settings: NotaSetting) => Promise<void>;
 }
 
-const OrderManagement: React.FC<OrderManagementProps> = ({ customers, bahanList, orders, printers, finishings, loggedInUser, addOrder, updateOrder, deleteOrder, updateOrderStatus }) => {
+const initialCustomerData: Omit<Customer, 'id' | 'created_at'> = { name: '', email: '', phone: '', address: '', level: 'End Customer' };
+
+const AddCustomerModal: React.FC<{
+    onClose: () => void;
+    addCustomer: (data: Omit<Customer, 'id' | 'created_at'>) => Promise<Customer>;
+    onCustomerAdded: (customer: Customer) => void;
+}> = ({ onClose, addCustomer, onCustomerAdded }) => {
+    const [formData, setFormData] = useState(initialCustomerData);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsLoading(true);
+        try {
+            const newCustomer = await addCustomer(formData);
+            if (newCustomer) {
+                onCustomerAdded(newCustomer);
+            }
+        } catch (error) {
+            console.error("Failed to add customer from modal:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50" onClick={onClose}>
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg p-6 sm:p-8 m-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-6 flex-shrink-0">Tambah Pelanggan Baru</h3>
+                <form onSubmit={handleSubmit} className="space-y-4 flex-1 overflow-y-auto -mr-4 pr-4">
+                    <div>
+                        <label htmlFor="modal_name" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Nama</label>
+                        <input type="text" name="name" id="modal_name" value={formData.name} onChange={handleInputChange} required className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition duration-300" />
+                    </div>
+                    <div>
+                        <label htmlFor="modal_level" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Level Pelanggan</label>
+                        <select
+                            name="level" id="modal_level" value={formData.level} onChange={handleInputChange} required
+                            className="w-full pl-3 pr-10 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition duration-300 appearance-none"
+                            style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em' }}
+                        >
+                            <option value="End Customer">End Customer</option>
+                            <option value="Retail">Retail</option>
+                            <option value="Grosir">Grosir</option>
+                            <option value="Reseller">Reseller</option>
+                            <option value="Corporate">Corporate</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label htmlFor="modal_email" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Email</label>
+                        <input type="email" name="email" id="modal_email" value={formData.email} onChange={handleInputChange} required className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition duration-300" />
+                    </div>
+                    <div>
+                        <label htmlFor="modal_phone" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Nomor Telepon</label>
+                        <input type="tel" name="phone" id="modal_phone" value={formData.phone} onChange={handleInputChange} required className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition duration-300" />
+                    </div>
+                    <div>
+                        <label htmlFor="modal_address" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Alamat</label>
+                        <textarea name="address" id="modal_address" value={formData.address} onChange={handleInputChange} required rows={3} className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition duration-300"></textarea>
+                    </div>
+                </form>
+                <div className="pt-6 border-t border-slate-200 dark:border-slate-700 flex-shrink-0 flex flex-col sm:flex-row gap-3">
+                    <button onClick={handleSubmit} disabled={isLoading} className="w-full sm:w-auto flex-1 px-6 py-3 rounded-lg text-white bg-pink-600 hover:bg-pink-700 transition-colors disabled:bg-pink-300">
+                        {isLoading ? 'Menyimpan...' : 'Simpan Pelanggan'}
+                    </button>
+                    <button onClick={onClose} className="w-full sm:w-auto flex-1 px-6 py-3 rounded-lg text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 transition-colors">
+                        Batal
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
+const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustomer, bahanList, orders, printers, finishings, addFinishing, updateFinishing, deleteFinishing, loggedInUser, addOrder, updateOrder, deleteOrder, updateOrderStatus, notaSetting, updateNotaSetting }) => {
     const [editingOrder, setEditingOrder] = useState<Order | null>(null);
     const [formData, setFormData] = useState<LocalOrder>(emptyOrder);
     const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
+    const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+    const [isFinishingModalOpen, setIsFinishingModalOpen] = useState(false);
+    const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
     const { addToast } = useToast();
     const ITEMS_PER_PAGE = 5;
     
@@ -230,18 +325,23 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, bahanList,
         setIsLoading(true);
 
         const preparedOrderItems = formData.order_items.map(item => ({
-            ...item,
+            bahan_id: item.bahan_id,
+            deskripsi_pesanan: item.deskripsi_pesanan,
+            finishing_id: item.finishing_id,
+            status_produksi: item.status_produksi,
             panjang: parseFloat(String(item.panjang).replace(',', '.')) || 0,
             lebar: parseFloat(String(item.lebar).replace(',', '.')) || 0,
+            qty: item.qty
         }));
         
         try {
             if (editingOrder) {
-                const updatePayload = {
-                    ...formData,
+                const { no_nota, ...updatePayload } = formData;
+                const finalUpdatePayload = {
+                    ...updatePayload,
                     order_items: preparedOrderItems,
                 };
-                await updateOrder(editingOrder.id, updatePayload);
+                await updateOrder(editingOrder.id, finalUpdatePayload);
             } else {
                 const { no_nota, ...addPayload } = formData;
                 const finalAddPayload = {
@@ -374,6 +474,50 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, bahanList,
 
     return (
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 h-full">
+             {isSettingsModalOpen && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50" onClick={() => setIsSettingsModalOpen(false)}>
+                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-2xl p-4 sm:p-6 m-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                        <div className="flex-1 overflow-y-auto">
+                            <NotaManagement settings={notaSetting} onUpdate={updateNotaSetting} />
+                        </div>
+                        <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 text-right">
+                            <button onClick={() => setIsSettingsModalOpen(false)} className="px-6 py-2 rounded-lg text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 transition-colors">
+                                Tutup
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+             {isFinishingModalOpen && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50" onClick={() => setIsFinishingModalOpen(false)}>
+                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-5xl p-4 sm:p-6 m-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                        <div className="flex-1 overflow-y-auto">
+                            <FinishingManagement
+                                finishings={finishings}
+                                addFinishing={addFinishing}
+                                updateFinishing={updateFinishing}
+                                deleteFinishing={deleteFinishing}
+                            />
+                        </div>
+                        <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 text-right">
+                            <button onClick={() => setIsFinishingModalOpen(false)} className="px-6 py-2 rounded-lg text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 transition-colors">
+                                Tutup
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+             {isAddCustomerModalOpen && (
+                <AddCustomerModal 
+                    onClose={() => setIsAddCustomerModalOpen(false)} 
+                    addCustomer={addCustomer}
+                    onCustomerAdded={(newCustomer) => {
+                        setFormData(prev => ({...prev, pelanggan_id: newCustomer.id}));
+                        setIsAddCustomerModalOpen(false);
+                    }}
+                />
+            )}
+
             <div className="hidden">
                 {selectedOrderForSpk && (
                     <SPK
@@ -392,9 +536,14 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, bahanList,
                     <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">
                         {editingOrder ? 'Edit Order' : 'Tambah Order Baru'}
                     </h3>
-                    <button onClick={handleAddNew} className="text-sm text-pink-600 hover:text-pink-700 dark:text-pink-400 dark:hover:text-pink-300 font-semibold">
-                        Buat Baru
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => setIsSettingsModalOpen(true)} className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" title="Pengaturan Nota">
+                            <SettingsIcon className="h-5 w-5" />
+                        </button>
+                        <button onClick={handleAddNew} className="text-sm text-pink-600 hover:text-pink-700 dark:text-pink-400 dark:hover:text-pink-300 font-semibold">
+                            Buat Baru
+                        </button>
+                    </div>
                 </div>
                 <div className="flex-1 overflow-y-auto -mr-3 pr-3 no-scrollbar">
                     <form onSubmit={handleSubmit} className="space-y-6">
@@ -413,10 +562,20 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, bahanList,
 
                          <div>
                             <label htmlFor="pelanggan_id" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Pelanggan</label>
-                            <select name="pelanggan_id" id="pelanggan_id" value={formData.pelanggan_id} onChange={handleFormChange} required className="w-full pl-3 pr-10 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100 appearance-none" style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em' }}>
-                                <option value={0} disabled>Pilih Pelanggan</option>
-                                {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
+                            <div className="flex items-center gap-2">
+                                <select name="pelanggan_id" id="pelanggan_id" value={formData.pelanggan_id} onChange={handleFormChange} required className="flex-grow w-full pl-3 pr-10 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100 appearance-none" style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em' }}>
+                                    <option value={0} disabled>Pilih Pelanggan</option>
+                                    {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsAddCustomerModalOpen(true)}
+                                    className="p-2 flex-shrink-0 rounded-lg text-pink-600 bg-pink-100 dark:bg-pink-900/40 dark:text-pink-400 hover:bg-pink-200 dark:hover:bg-pink-900/60 transition-colors"
+                                    title="Tambah Pelanggan Baru"
+                                >
+                                    <UserPlusIcon className="h-6 w-6" />
+                                </button>
+                            </div>
                         </div>
 
                         <div className="space-y-4">
@@ -436,7 +595,17 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, bahanList,
                                             <input type="text" name="deskripsi_pesanan" id={`deskripsi_pesanan-${index}`} value={item.deskripsi_pesanan || ''} onChange={(e) => handleItemChange(index, e)} className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100" />
                                         </div>
                                         <div>
-                                            <label htmlFor={`finishing_id-${index}`} className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Finishing</label>
+                                            <div className="flex justify-between items-center mb-1">
+                                                <label htmlFor={`finishing_id-${index}`} className="block text-sm font-medium text-slate-600 dark:text-slate-300">Finishing</label>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setIsFinishingModalOpen(true)}
+                                                    className="p-1 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                                                    title="Atur Opsi Finishing"
+                                                >
+                                                    <SettingsIcon className="h-4 w-4" />
+                                                </button>
+                                            </div>
                                             <select name="finishing_id" id={`finishing_id-${index}`} value={item.finishing_id || ''} onChange={(e) => handleItemChange(index, e)} className="w-full pl-3 pr-10 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100 appearance-none" style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em' }}>
                                                 <option value="">Tanpa Finishing</option>
                                                 {finishings.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}

@@ -6,7 +6,7 @@ import Pagination from '../Pagination';
 
 interface DebtManagementProps {
     debts: Debt[];
-    addDebt: (data: Omit<Debt, 'id' | 'created_at'>) => Promise<void>;
+    addDebt: (data: Omit<Debt, 'id' | 'created_at'>) => Promise<Debt>;
     updateDebt: (id: number, data: Partial<Omit<Debt, 'id' | 'created_at'>>) => Promise<void>;
     deleteDebt: (id: number) => Promise<void>;
 }

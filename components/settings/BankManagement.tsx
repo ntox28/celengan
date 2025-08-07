@@ -5,7 +5,7 @@ import TrashIcon from '../icons/TrashIcon';
 
 interface BankManagementProps {
     banks: Bank[];
-    addBank: (data: Omit<Bank, 'id' | 'created_at'>) => Promise<void>;
+    addBank: (data: Omit<Bank, 'id' | 'created_at'>) => Promise<Bank>;
     updateBank: (id: number, data: Partial<Omit<Bank, 'id' | 'created_at'>>) => Promise<void>;
     deleteBank: (id: number) => Promise<void>;
 }

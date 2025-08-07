@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef } from 'react';
 import { Finishing } from '../../lib/supabaseClient';
 import EditIcon from '../icons/EditIcon';
@@ -6,9 +7,9 @@ import TrashIcon from '../icons/TrashIcon';
 
 interface FinishingManagementProps {
     finishings: Finishing[];
-    addFinishing: (data: Omit<Finishing, 'id' | 'created_at'>) => void;
-    updateFinishing: (id: number, data: Partial<Omit<Finishing, 'id' | 'created_at'>>) => void;
-    deleteFinishing: (id: number) => void;
+    addFinishing: (data: Omit<Finishing, 'id' | 'created_at'>) => Promise<Finishing>;
+    updateFinishing: (id: number, data: Partial<Omit<Finishing, 'id' | 'created_at'>>) => Promise<void>;
+    deleteFinishing: (id: number) => Promise<void>;
 }
 
 const initialFormData: Omit<Finishing, 'id' | 'created_at'> = {
@@ -44,29 +45,38 @@ const FinishingManagement: React.FC<FinishingManagementProps> = ({ finishings, a
         setFormData(prev => ({ ...prev, [name]: type === 'number' ? parseFloat(value) || 0 : value }));
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
-        if (editingFinishing) {
-            updateFinishing(editingFinishing.id, formData);
-        } else {
-            addFinishing(formData);
-            handleAddNew();
+        try {
+            if (editingFinishing) {
+                await updateFinishing(editingFinishing.id, formData);
+            } else {
+                await addFinishing(formData);
+                handleAddNew();
+            }
+        } catch (error) {
+            console.error("Failed to save finishing", error);
+        } finally {
+            setIsLoading(false);
         }
-        setIsLoading(false);
     };
 
-    const handleDelete = (id: number) => {
+    const handleDelete = async (id: number) => {
         if (window.confirm('Apakah Anda yakin ingin menghapus jenis finishing ini?')) {
-            deleteFinishing(id);
-            if (editingFinishing?.id === id) {
-                handleAddNew();
+            try {
+                await deleteFinishing(id);
+                if (editingFinishing?.id === id) {
+                    handleAddNew();
+                }
+            } catch (error) {
+                console.error("Failed to delete finishing", error);
             }
         }
     };
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div ref={formRef} className="lg:col-span-1 bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">
@@ -99,7 +109,7 @@ const FinishingManagement: React.FC<FinishingManagementProps> = ({ finishings, a
                 </form>
             </div>
 
-            <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col">
+            <div className="lg:col-span-1 bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col">
                 <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-6">Daftar Jenis Finishing</h2>
                 <div className="flex-1 overflow-y-auto -mx-6 px-6">
                     <table className="w-full text-sm text-left text-slate-700 dark:text-slate-300">

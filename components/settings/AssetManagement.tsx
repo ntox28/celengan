@@ -6,7 +6,7 @@ import Pagination from '../Pagination';
 
 interface AssetManagementProps {
     assets: Asset[];
-    addAsset: (data: Omit<Asset, 'id' | 'created_at' | 'is_dynamic'>) => Promise<void>;
+    addAsset: (data: Omit<Asset, 'id' | 'created_at' | 'is_dynamic'>) => Promise<Asset>;
     updateAsset: (id: number, data: Partial<Omit<Asset, 'id'|'created_at'|'is_dynamic'>>) => Promise<void>;
     deleteAsset: (id: number) => Promise<void>;
 }
