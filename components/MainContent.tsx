@@ -2,7 +2,7 @@
 
 import React from 'react';
 import CustomerManagement from './customers/CustomerManagement';
-import { User as AuthUser } from '../lib/supabaseClient';
+import { EmployeePosition, User as AuthUser } from '../lib/supabaseClient';
 import EmployeeManagement from './employees/EmployeeManagement';
 import SettingsManagement from './settings/SettingsManagement';
 import BahanManagement from './bahan/BahanManagement';
@@ -45,7 +45,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
     orders, addOrder, updateOrder, deleteOrder, addPaymentToOrder, updateOrderStatus, updateOrderItemStatus,
     expenses, addExpense, updateExpense, deleteExpense,
     banks, addBank, updateBank, deleteBank,
-    printers,
+    printers, addPrinter, updatePrinter, deletePrinter,
     assets, addAsset, updateAsset, deleteAsset,
     debts, addDebt, updateDebt, deleteDebt,
     notaSetting, updateNotaSetting,
@@ -56,7 +56,9 @@ const MainContent: React.FC<MainContentProps> = (props) => {
   } = props;
   
   const employee = employees.find(e => e.user_id === user.id);
-  const userRole = employee?.position || (user.user_metadata as any)?.userrole || 'Kasir';
+  // This logic mirrors Dashboard.tsx to ensure consistency.
+  // The 'employees' table is the source of truth for the user's position.
+  const userRole = employee?.position || (user.user_metadata as { userrole?: EmployeePosition })?.userrole || 'Kasir';
   const displayName = employee ? employee.name : (user.email || 'Pengguna');
   const avatarSeed = displayName;
 
@@ -162,6 +164,14 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     addBahan={addBahan}
                     updateBahan={updateBahan}
                     deleteBahan={deleteBahan}
+                    printers={printers}
+                    addPrinter={addPrinter}
+                    updatePrinter={updatePrinter}
+                    deletePrinter={deletePrinter}
+                    finishings={finishings}
+                    addFinishing={addFinishing}
+                    updateFinishing={updateFinishing}
+                    deleteFinishing={deleteFinishing}
                 />;
       default:
         return <WelcomeContent user={user} activeView={activeView} />;

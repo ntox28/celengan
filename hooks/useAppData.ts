@@ -385,21 +385,43 @@ export const useAppData = (user: User | undefined) => {
     const deleteOrder = async (id: number) => deleteRecord('orders', id, setOrders, 'Order berhasil dihapus.');
 
     const addPaymentToOrder = async (orderId: number, paymentData: Omit<Payment, 'id' | 'created_at' | 'order_id'>) => {
-        await createRecord('payments', {...paymentData, order_id: orderId}, (newPayments) => {
-            setOrders(prev => prev.map(o => {
-                if (o.id === orderId) {
-                    const updatedOrder = { ...o, payments: [...o.payments, ...(newPayments as Payment[])] };
-                    // Recalculate payment status and update order if needed
-                    // (This should ideally be a backend trigger/function for atomicity)
-                    return updatedOrder;
-                }
-                return o;
-            }))
-        }, 'Pembayaran berhasil ditambahkan.');
+        const { data: newPayment, error } = await supabase
+            .from('payments')
+            .insert({ ...paymentData, order_id: orderId })
+            .select()
+            .single();
 
-        // Refetch the single order to update payment status correctly
-        const { data: fullOrder } = await supabase.from('orders').select('*, order_items(*), payments(*)').eq('id', orderId).single();
-        if(fullOrder) setOrders(prev => prev.map(o => o.id === orderId ? fullOrder as Order : o));
+        if (error) {
+            addToast(`Gagal menambah pembayaran: ${error.message}`, 'error');
+            throw error;
+        }
+
+        if (newPayment) {
+            addToast('Pembayaran berhasil ditambahkan.', 'success');
+
+            // Refetch the full order to get all updates, including payment status change from triggers
+            const { data: fullOrder, error: fetchError } = await supabase
+                .from('orders')
+                .select('*, order_items(*), payments(*)')
+                .eq('id', orderId)
+                .single();
+            
+            if (fetchError) {
+                addToast('Gagal memuat ulang data order, tampilan mungkin tidak sinkron.', 'error');
+                // Fallback to manual client-side update if refetch fails
+                setOrders(prevOrders => prevOrders.map(order => {
+                    if (order.id === orderId) {
+                        return {
+                            ...order,
+                            payments: [...order.payments, newPayment]
+                        };
+                    }
+                    return order;
+                }));
+            } else if (fullOrder) {
+                setOrders(prevOrders => prevOrders.map(o => (o.id === orderId ? fullOrder as Order : o)));
+            }
+        }
     };
 
     const updateOrderStatus = async (orderId: number, status: OrderStatus, pelaksana_id: string | null = null) => {

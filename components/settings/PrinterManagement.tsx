@@ -5,7 +5,7 @@ import TrashIcon from '../icons/TrashIcon';
 
 interface PrinterManagementProps {
     printers: Printer[];
-    addPrinter: (data: Omit<Printer, 'id' | 'created_at'>) => Promise<void>;
+    addPrinter: (data: Omit<Printer, 'id' | 'created_at'>) => Promise<Printer>;
     updatePrinter: (id: number, data: Partial<Omit<Printer, 'id' | 'created_at'>>) => Promise<void>;
     deletePrinter: (id: number) => Promise<void>;
 }
