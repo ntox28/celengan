@@ -1,12 +1,39 @@
 
 
 import { useState, useEffect, useMemo } from 'react';
-import { supabase, Customer, Employee, Bahan, Expense, Order, OrderItem, Payment, User, Bank, Printer, Asset, Debt, NotaSetting, Supplier, StockMovement, Finishing, OrderStatus, ProductionStatus, OrderRow, Database } from '../lib/supabaseClient';
+import { supabase, Customer, Employee, Bahan, Expense, Order, OrderItem, Payment, User, Bank, Printer, Asset, Debt, NotaSetting, Supplier, StockMovement, Finishing, OrderStatus, ProductionStatus, OrderRow, Database, CustomerLevel } from '../lib/supabaseClient';
 import { useToast } from './useToast';
 
 // Type definitions for complex parameters
 type AddOrderPayload = Omit<OrderRow, 'id' | 'created_at' | 'no_nota'> & { order_items: Omit<OrderItem, 'id'|'created_at'|'order_id'>[] };
 type UpdateOrderPayload = Partial<Omit<OrderRow, 'id' | 'created_at'>> & { order_items?: Omit<OrderItem, 'id'|'created_at'|'order_id'>[] };
+
+
+const getPriceForCustomer = (bahan: Bahan, level: CustomerLevel): number => {
+    switch (level) {
+        case 'End Customer': return bahan.harga_end_customer;
+        case 'Retail': return bahan.harga_retail;
+        case 'Grosir': return bahan.harga_grosir;
+        case 'Reseller': return bahan.harga_reseller;
+        case 'Corporate': return bahan.harga_corporate;
+        default: return 0;
+    }
+};
+
+const calculateOrderTotal = (order: Order, customers: Customer[], bahanList: Bahan[]): number => {
+    const customer = customers.find(c => c.id === order.pelanggan_id);
+    if (!customer) return 0;
+
+    return order.order_items.reduce((total, item) => {
+        const bahan = bahanList.find(b => b.id === item.bahan_id);
+        if (!bahan) return total;
+
+        const price = getPriceForCustomer(bahan, customer.level);
+        const itemArea = (item.panjang || 0) > 0 && (item.lebar || 0) > 0 ? (item.panjang || 1) * (item.lebar || 1) : 1;
+        const itemTotal = price * itemArea * item.qty;
+        return total + itemTotal;
+    }, 0);
+};
 
 
 export const useAppData = (user: User | undefined) => {
@@ -412,7 +439,25 @@ export const useAppData = (user: User | undefined) => {
         if (newPayment) {
             addToast('Pembayaran berhasil ditambahkan.', 'success');
 
-            // Refetch the full order to get all updates, including payment status change from triggers
+            // Check if the order is now fully paid
+            const order = orders.find(o => o.id === orderId);
+            if (order) {
+                // Round values to avoid floating point issues.
+                const totalPaidInCents = Math.round((order.payments.reduce((sum, p) => sum + p.amount, 0) + newPayment.amount) * 100);
+                const totalBillInCents = Math.round(calculateOrderTotal(order, customers, bahanList) * 100);
+                
+                if (totalPaidInCents >= totalBillInCents) {
+                    const { error: updateError } = await supabase
+                        .from('orders')
+                        .update({ status_pembayaran: 'Lunas' })
+                        .eq('id', orderId);
+                    if (updateError) {
+                        addToast(`Pembayaran terekam, tapi gagal update status order: ${updateError.message}`, 'error');
+                    }
+                }
+            }
+
+            // Refetch the full order to get all updates, including payment status change
             const { data: fullOrder, error: fetchError } = await supabase
                 .from('orders')
                 .select('*, order_items(*), payments(*)')
@@ -422,14 +467,11 @@ export const useAppData = (user: User | undefined) => {
             if (fetchError) {
                 addToast('Gagal memuat ulang data order, tampilan mungkin tidak sinkron.', 'error');
                 // Fallback to manual client-side update if refetch fails
-                setOrders(prevOrders => prevOrders.map(order => {
-                    if (order.id === orderId) {
-                        return {
-                            ...order,
-                            payments: [...order.payments, newPayment]
-                        };
+                setOrders(prevOrders => prevOrders.map(o => {
+                    if (o.id === orderId) {
+                        return { ...o, payments: [...o.payments, newPayment] };
                     }
-                    return order;
+                    return o;
                 }));
             } else if (fullOrder) {
                 setOrders(prevOrders => prevOrders.map(o => (o.id === orderId ? fullOrder as Order : o)));
