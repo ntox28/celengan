@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase, ProductionStatus, Order, Customer, Bahan } from '../../lib/supabaseClient';
+import CompressIcon from '../icons/CompressIcon';
+import ExpandIcon from '../icons/ExpandIcon';
 
 interface ProductionItem {
     id: number;
@@ -42,6 +44,8 @@ const getStatusClass = (status: ProductionStatus) => {
 const PublicView: React.FC<{ onLoginRequest: () => void }> = ({ onLoginRequest }) => {
     const [items, setItems] = useState<ProductionItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [updatedItemIds, setUpdatedItemIds] = useState(new Set<number>());
 
     const stats = useMemo(() => {
         const todayStr = new Date().toISOString().split('T')[0];
@@ -73,12 +77,12 @@ const PublicView: React.FC<{ onLoginRequest: () => void }> = ({ onLoginRequest }
 
         if (error) {
             console.error("Error fetching production data:", error);
-            setLoading(false);
+            if (loading) setLoading(false);
             return;
         }
 
         if (ordersData) {
-            const allItems: ProductionItem[] = ordersData
+            const newItems: ProductionItem[] = ordersData
                 .flatMap(order =>
                     (order.order_items || []).map(item => ({
                         id: item.id,
@@ -94,9 +98,29 @@ const PublicView: React.FC<{ onLoginRequest: () => void }> = ({ onLoginRequest }
                     }))
                 )
                 .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-            setItems(allItems);
+            
+            setItems(currentItems => {
+                if (!loading && currentItems.length > 0) {
+                    const updatedIds = new Set<number>();
+                    newItems.forEach(newItem => {
+                        const oldItem = currentItems.find(p => p.id === newItem.id);
+                        if (!oldItem || oldItem.status !== newItem.status) {
+                            updatedIds.add(newItem.id);
+                        }
+                    });
+
+                    if (updatedIds.size > 0) {
+                        setUpdatedItemIds(updatedIds);
+                        setTimeout(() => setUpdatedItemIds(new Set()), 1600); // Animation is 1.5s
+                    }
+                }
+                return newItems;
+            });
         }
-        setLoading(false);
+        
+        if (loading) {
+            setLoading(false);
+        }
     };
 
     useEffect(() => {
@@ -112,29 +136,66 @@ const PublicView: React.FC<{ onLoginRequest: () => void }> = ({ onLoginRequest }
         };
     }, []);
 
-    const latestItems = items.slice(0, 20);
+    useEffect(() => {
+        const handleFullScreenChange = () => {
+            setIsFullscreen(!!document.fullscreenElement);
+        };
+        document.addEventListener('fullscreenchange', handleFullScreenChange);
+        return () => document.removeEventListener('fullscreenchange', handleFullScreenChange);
+    }, []);
+
+    const toggleFullScreen = () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => {
+                alert(`Gagal mengaktifkan mode layar penuh: ${err.message} (${err.name})`);
+            });
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        }
+    };
+
+    const latestItems = items.slice(0, 50); // Show more items if screen allows
 
     return (
-        <div className="flight-board min-h-screen">
-            <header className="p-4 sm:p-6 flex justify-between items-center border-b-2 border-amber-500/30">
+        <div className="flight-board h-screen flex flex-col">
+            <header className="p-4 sm:p-6 flex justify-between items-center border-b-2 border-amber-500/30 flex-shrink-0">
                 <div className="text-left">
                     <h1 className="text-2xl md:text-3xl font-bold text-amber-400 tracking-wider">NALAMEDIA DIGITAL PRINTING</h1>
-                    <p className="text-xs text-amber-400/80 -mt-1 tracking-widest">|Jl. Prof. Moh. Yamin,Cerbonan,Karanganyar(Timur Stadion 45)|</p>
-                    <p className="text-xs text-amber-400/80 -mt-1 tracking-widest">|---Email : nalamedia.kra@gmail.com | Telp: 0813-9872-7722--|</p>
+                    <p className="text-xs text-amber-400/80 -mt-1 tracking-widest">|Jl. Prof. Moh. Yamin,Cerbonan,Karanganyar (Timur Stadion 45)|</p>
+                    <p className="text-xs text-amber-400/80 -mt-1 tracking-widest">|---Email : nalamedia.kra@gmail.com | Telp: 0813-9872-7722---|</p>
                 </div>
                 <div className="text-center">
                      <Clock />
                      <p className="text-xs tracking-widest">{new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                 </div>
-                <button
-                    onClick={onLoginRequest}
-                    className="text-sm font-bold text-amber-400 border-2 border-amber-400 hover:bg-amber-400 hover:text-black focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black focus:ring-amber-500 rounded-md px-4 py-2 transition-colors"
-                >
-                    Aktifitas Terbaru
-                </button>
+                <div className="flex items-center gap-4">
+                     <button
+                        onClick={toggleFullScreen}
+                        className="text-amber-400 border-2 border-amber-400 hover:bg-amber-400 hover:text-black focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black focus:ring-amber-500 rounded-md p-2 transition-colors"
+                        aria-label="Toggle Fullscreen"
+                    >
+                        {isFullscreen ? <CompressIcon className="h-5 w-5" /> : <ExpandIcon className="h-5 w-5" />}
+                    </button>
+                    {!isFullscreen && (
+                        <button
+                            onClick={onLoginRequest}
+                            className="text-sm font-bold text-amber-400 border-2 border-amber-400 hover:bg-amber-400 hover:text-black focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black focus:ring-amber-500 rounded-md px-4 py-2 transition-colors"
+                        >
+                            LOGIN
+                        </button>
+                    )}
+                </div>
             </header>
 
-            <main className="p-2 sm:p-4">
+            <div className="p-4 text-sm tracking-widest border-b-2 border-amber-500/30 grid grid-cols-3 gap-4 text-center flex-shrink-0">
+                <div>PESANAN MASUK: <span className="font-bold">{stats.totalOrders}</span></div>
+                <div>PESANAN DI PROSES : <span className="font-bold">{stats.processing}</span></div>
+                <div>PESANAN SELESAI : <span className="font-bold">{stats.completed}</span></div>
+            </div>
+
+            <main className="p-2 sm:p-4 flex-1 overflow-y-auto">
                 {loading ? (
                     <div className="text-center py-20">
                          <svg className="animate-spin -ml-1 mr-3 h-10 w-10 text-amber-400 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -147,7 +208,7 @@ const PublicView: React.FC<{ onLoginRequest: () => void }> = ({ onLoginRequest }
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-base md:text-lg">
                             <thead>
-                                <tr className="border-b-2 border-amber-500/30 text-amber-400 text-sm">
+                                <tr className="border-b-2 border-amber-500/30 text-amber-400/80 text-sm">
                                     <th className="p-2 sm:p-3 w-1/12">TIME</th>
                                     <th className="p-2 sm:p-3 w-2/12">NOTA</th>
                                     <th className="p-2 sm:p-3 w-3/12">CUSTOMER</th>
@@ -165,7 +226,7 @@ const PublicView: React.FC<{ onLoginRequest: () => void }> = ({ onLoginRequest }
                                     ].filter(Boolean).join(' | ');
 
                                     return (
-                                        <tr key={item.id} className="border-b border-amber-500/10">
+                                        <tr key={item.id} className={`border-b border-amber-500/10 ${updatedItemIds.has(item.id) ? 'item-updated' : ''}`}>
                                             <td className="p-2 sm:p-3 font-semibold status-cell text-amber-500">{new Date(item.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</td>
                                             <td className="p-2 sm:p-3 status-cell text-amber-500">{item.no_nota}</td>
                                             <td className="p-2 sm:p-3 status-cell text-amber-500">{item.customer_name}</td>
@@ -181,12 +242,6 @@ const PublicView: React.FC<{ onLoginRequest: () => void }> = ({ onLoginRequest }
                     </div>
                 )}
             </main>
-            
-            <footer className="p-4 text-sm tracking-widest border-t-2 border-amber-500/30 grid grid-cols-3 gap-4 text-center">
-                <div>TODAY'S ORDERS: <span className="font-bold">{stats.totalOrders}</span></div>
-                <div>PROCESSING: <span className="font-bold">{stats.processing}</span></div>
-                <div>COMPLETED: <span className="font-bold">{stats.completed}</span></div>
-            </footer>
         </div>
     );
 };

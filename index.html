@@ -246,6 +246,19 @@
     text-shadow: 0 0 12px #f59e0b;
   }
 }
+
+@keyframes glow-update {
+  0% { text-shadow: 0 0 8px currentColor; }
+  50% { 
+    color: #fefce8; /* amber-50 */
+    text-shadow: 0 0 16px #fde047, 0 0 24px #facc15; /* yellow-300, yellow-400 */
+  }
+  100% { text-shadow: 0 0 8px currentColor; }
+}
+
+.item-updated td.status-cell {
+  animation: glow-update 1.5s ease-in-out;
+}
 </style>
 <link rel="stylesheet" href="/index.css">
 </head>
