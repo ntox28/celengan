@@ -1,4 +1,5 @@
-import { createClient, User as AuthUser, Session as AuthSession } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
+import type { User as AuthUser, Session as AuthSession } from '@supabase/auth-js';
 
 const supabaseUrl = 'https://xkvgflhjcnkythytbkuj.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhrdmdmbGhqY25reXRoeXRia3VqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ0NDM4OTYsImV4cCI6MjA3MDAxOTg5Nn0.X9CM27REAKqjD82jAgZEKRGTo0LTkUpI8Df5feUOxww';
@@ -22,15 +23,14 @@ export type EmployeePosition = 'Admin' | 'Kasir' | 'Office' | 'Produksi';
 export type ProductionStatus = 'Belum Dikerjakan' | 'Proses' | 'Selesai';
 export type PaymentStatus = 'Belum Lunas' | 'Lunas';
 export type OrderStatus = 'Pending' | 'Proses';
-export type PrintTarget = 'SPK' | 'Nota' | 'Struk';
-export type PrinterType = 'Thermal 58mm' | 'Thermal 80mm' | 'Dot Matrix';
 export type AssetCategory = 'Aset Lancar' | 'Aset Tetap' | 'Aset Tidak Terwujud' | 'Aset Lainnya';
 export type AssetStatus = 'Baik' | 'Perbaikan' | 'Rusak' | 'Dijual';
 export type DebtCategory = 'Pinjaman Bank' | 'Kredit Aset' | 'Hutang Pemasok' | 'Lainnya';
 export type DebtStatus = 'Belum Lunas' | 'Lunas Sebagian' | 'Lunas';
 export type StockMovementType = 'in' | 'out';
 export type ExpenseCategory = 'Bahan' | 'Konsumsi' | 'Bulanan' | 'Operasional' | 'Lain-lain';
-
+export type PrinterType = 'Thermal 58mm' | 'Thermal 80mm' | 'Dot Matrix';
+export type PrintTarget = 'SPK' | 'Nota' | 'Struk';
 
 export interface Customer {
     id: number;
@@ -124,15 +124,6 @@ export interface Bank {
     category: 'Bank' | 'Digital Wallet' | 'Qris';
 }
 
-export interface Printer {
-    id: number;
-    created_at: string;
-    name: string;
-    type: PrinterType;
-    target: PrintTarget;
-    is_default: boolean;
-}
-
 export interface Asset {
     id: number;
     created_at: string;
@@ -188,6 +179,14 @@ export interface Finishing {
     lebar_tambahan: number;
 }
 
+export interface Printer {
+    id: number;
+    created_at: string;
+    name: string;
+    type: PrinterType;
+    target: PrintTarget;
+    is_default: boolean;
+}
 
 export interface Database {
   public: {
@@ -232,11 +231,6 @@ export interface Database {
         Insert: Omit<Bank, 'id' | 'created_at'>;
         Update: Partial<Omit<Bank, 'id' | 'created_at'>>;
       };
-      printers: {
-        Row: Printer;
-        Insert: Omit<Printer, 'id' | 'created_at'>;
-        Update: Partial<Omit<Printer, 'id' | 'created_at'>>;
-      };
       assets: {
         Row: Asset;
         Insert: Omit<Asset, 'id' | 'created_at' | 'is_dynamic'>;
@@ -261,6 +255,11 @@ export interface Database {
         Row: Finishing;
         Insert: Omit<Finishing, 'id' | 'created_at'>;
         Update: Partial<Omit<Finishing, 'id' | 'created_at'>>;
+      };
+      printers: {
+        Row: Printer;
+        Insert: Omit<Printer, 'id' | 'created_at'>;
+        Update: Partial<Omit<Printer, 'id' | 'created_at'>>;
       };
       settings: {
         Row: { key: string; value: string; };

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import html2canvas from 'html2canvas';
-import { Customer, CustomerLevel, Bahan, Order, Payment, PaymentStatus, ProductionStatus, Employee, User as AuthUser, Bank, Printer, Finishing } from '../../lib/supabaseClient';
+import { Customer, CustomerLevel, Bahan, Order, Payment, PaymentStatus, ProductionStatus, Employee, User as AuthUser, Bank, Finishing } from '../../lib/supabaseClient';
 import PrintIcon from '../icons/PrintIcon';
 import WhatsAppIcon from '../icons/WhatsAppIcon';
 import ImageIcon from '../icons/ImageIcon';
@@ -23,7 +23,6 @@ interface TransactionManagementProps {
     employees: Employee[];
     addPaymentToOrder: (orderId: number, paymentData: Omit<Payment, 'id' | 'created_at' | 'order_id'>) => Promise<void>;
     banks: Bank[];
-    printers: Printer[];
     finishings: Finishing[];
 }
 
@@ -71,7 +70,7 @@ const calculateTotalPaid = (order: Order): number => {
     return order.payments.reduce((sum, payment) => sum + payment.amount, 0);
 };
 
-const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, customers, bahanList, loggedInUser, employees, addPaymentToOrder, banks, printers, finishings }) => {
+const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, customers, bahanList, loggedInUser, employees, addPaymentToOrder, banks, finishings }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isActionMenuOpen, setIsActionMenuOpen] = useState<number | null>(null);
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -228,37 +227,18 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
         return employee ? employee.name : 'Akun Tidak Dikenal';
     };
     
-    const getPrintStyles = (printerType: Printer['type'], target: 'Nota' | 'Struk'): string => {
-        switch (printerType) {
-            case 'Thermal 58mm':
-                return `@page { size: 58mm auto; margin: 2mm; } body { font-family: sans-serif; font-size: 8pt; width: 54mm; color: #000; } .struk-container { width: 100%; }`;
-            case 'Thermal 80mm':
-                 return `@page { size: 80mm auto; margin: 3mm; } body { font-family: sans-serif; font-size: 9pt; width: 74mm; color: #000; } .struk-container { width: 100%; }`;
-            case 'Dot Matrix':
-                 return `@page { margin: 10mm; } body { font-family: sans-serif; font-size: 10pt; color: #000; } .nota-dot-matrix { width: 100%; }`;
-            default:
-                return `@page { margin: 10mm; } body { font-family: sans-serif; font-size: 10pt; }`;
-        }
-    }
-
     const handlePrint = () => {
-       const defaultPrinter = printers.find(p => p.target === 'Nota' && p.is_default);
-       if (!defaultPrinter) {
-            addToast('Tidak ada printer default untuk Nota. Atur di menu Pengaturan.', 'error');
-            return;
-       }
        if (!notaRef.current) {
             addToast('Gagal memuat data nota.', 'error');
             return;
         }
     
-        addToast(`Mencetak nota menggunakan ${defaultPrinter.name}...`, 'info');
         const printContents = notaRef.current.innerHTML;
         const printWindow = window.open('', '', 'height=800,width=800');
 
         if (printWindow) {
             printWindow.document.write('<html><head><title>Cetak Nota</title>');
-            printWindow.document.write(`<style>${getPrintStyles(defaultPrinter.type, 'Nota')} .nota-header, .nota-footer { text-align: center; } .company-name { font-size: 14pt; font-weight: bold; margin-bottom: 5px; } .nota-info, .summary-row { display: flex; justify-content: space-between; margin: 2px 0; } hr.separator { border: none; border-top: 1px dashed black; margin: 10px 0; } hr.my-1 { margin-top: 4px; margin-bottom: 4px; } .nota-summary { margin-top: 10px; } .summary-row.total { font-weight: bold; margin-top: 5px; padding-top: 5px; border-top: 1px solid black; } .nota-footer { margin-top: 20px; } .flex { display: flex; } .font-bold { font-weight: bold; } .items-start { align-items: flex-start; } .py-0\\.5 { padding-top: 2px; padding-bottom: 2px; } .pr-1 { padding-right: 4px; } .text-center { text-align: center; } .text-right { text-align: right; } .break-words { word-wrap: break-word; } .w-\\[10\\%\\] { width: 10%; } .w-\\[15\\%\\] { width: 15%; } .w-\\[20\\%\\] { width: 20%; } .w-\\[25\\%\\] { width: 25%; } .w-\\[30\\%\\] { width: 30%; } .w-\\[35\\%\\] { width: 35%; } .text-\\[9px\\] { font-size: 9px; } .italic { font-style: italic; }</style>`);
+            printWindow.document.write(`<style>@page { margin: 10mm; } body { font-family: sans-serif; font-size: 10pt; color: #000; } .nota-dot-matrix { width: 100%; } .nota-header, .nota-footer { text-align: center; } .company-name { font-size: 14pt; font-weight: bold; margin-bottom: 5px; } .nota-info, .summary-row { display: flex; justify-content: space-between; margin: 2px 0; } hr.separator { border: none; border-top: 1px dashed black; margin: 10px 0; } hr.my-1 { margin-top: 4px; margin-bottom: 4px; } .nota-summary { margin-top: 10px; } .summary-row.total { font-weight: bold; margin-top: 5px; padding-top: 5px; border-top: 1px solid black; } .nota-footer { margin-top: 20px; } .flex { display: flex; } .font-bold { font-weight: bold; } .items-start { align-items: flex-start; } .py-0\\.5 { padding-top: 2px; padding-bottom: 2px; } .pr-1 { padding-right: 4px; } .text-center { text-align: center; } .text-right { text-align: right; } .break-words { word-wrap: break-word; } .w-\\[10\\%\\] { width: 10%; } .w-\\[15\\%\\] { width: 15%; } .w-\\[20\\%\\] { width: 20%; } .w-\\[25\\%\\] { width: 25%; } .w-\\[30\\%\\] { width: 30%; } .w-\\[35\\%\\] { width: 35%; } .text-\\[9px\\] { font-size: 9px; } .italic { font-style: italic; }</style>`);
             printWindow.document.write('</head><body>');
             printWindow.document.write(printContents);
             printWindow.document.write('</body></html>');
@@ -269,24 +249,20 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
     };
     
     const handlePrintStruk = () => {
-       const defaultPrinter = printers.find(p => p.target === 'Struk' && p.is_default);
-       if (!defaultPrinter) {
-            addToast('Tidak ada printer default untuk Struk. Atur di menu Pengaturan.', 'error');
-            return;
-       }
-       addToast(`Mencetak struk menggunakan ${defaultPrinter.name}...`, 'info');
        const printContents = strukRef.current?.innerHTML;
        if(printContents) {
          const printWindow = window.open('', '', 'height=600,width=400');
          if (!printWindow) return;
          printWindow.document.write('<html><head><title>Cetak Struk</title>');
-         printWindow.document.write(`<style>${getPrintStyles(defaultPrinter.type, 'Struk')} h1, h2, h3, p, div, span, td, th { font-family: inherit !important; } hr { border: none; border-top: 1px dashed black; margin: 8px 0; } .flex { display: flex; } .font-bold { font-weight: bold; } .items-start { align-items: flex-start; } .justify-between { justify-content: space-between; } .text-center { text-align: center; } .text-right { text-align: right; } .break-words { word-wrap: break-word; } .my-1 { margin-top: 4px; margin-bottom: 4px; } .my-2 { margin-top: 8px; margin-bottom: 8px; } .mb-1 { margin-bottom: 4px; } .pr-1 { padding-right: 4px; } .py-0\\.5 { padding-top: 2px; padding-bottom: 2px; } .w-\\[10\\%\\] { width: 10%; } .w-\\[20\\%\\] { width: 20%; } .w-\\[30\\%\\] { width: 30%; } .w-\\[50\\%\\] { width: 50%; } .w-\\[60\\%\\] { width: 60%; } .w-\\[90\\%\\] { width: 90%; } .space-y-1 > * + * { margin-top: 4px; } .mt-2 { margin-top: 8px; } .leading-tight { line-height: 1.25; } .text-\\[9px\\] { font-size: 9px; }</style>`);
+         printWindow.document.write(`<style>@page { size: 58mm auto; margin: 2mm; } body { font-family: sans-serif; font-size: 8pt; width: 54mm; color: #000; } .struk-container { width: 100%; } h1, h2, h3, p, div, span, td, th { font-family: inherit !important; } hr { border: none; border-top: 1px dashed black; margin: 8px 0; } .flex { display: flex; } .font-bold { font-weight: bold; } .items-start { align-items: flex-start; } .justify-between { justify-content: space-between; } .text-center { text-align: center; } .text-right { text-align: right; } .break-words { word-wrap: break-word; } .my-1 { margin-top: 4px; margin-bottom: 4px; } .my-2 { margin-top: 8px; margin-bottom: 8px; } .mb-1 { margin-bottom: 4px; } .pr-1 { padding-right: 4px; } .py-0\\.5 { padding-top: 2px; padding-bottom: 2px; } .w-\\[10\\%\\] { width: 10%; } .w-\\[20\\%\\] { width: 20%; } .w-\\[30\\%\\] { width: 30%; } .w-\\[50\\%\\] { width: 50%; } .w-\\[60\\%\\] { width: 60%; } .w-\\[90\\%\\] { width: 90%; } .space-y-1 > * + * { margin-top: 4px; } .mt-2 { margin-top: 8px; } .leading-tight { line-height: 1.25; } .text-\\[9px\\] { font-size: 9px; }</style>`);
          printWindow.document.write('</head><body class="bg-white">');
          printWindow.document.write(`<div class="struk-container">${printContents}</div>`);
          printWindow.document.write('</body></html>');
          printWindow.document.close();
          printWindow.focus();
          setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
+       } else {
+            addToast('Gagal memuat data struk.', 'error');
        }
     };
     

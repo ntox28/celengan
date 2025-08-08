@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase, ProductionStatus, Order, Customer, Bahan } from '../../lib/supabaseClient';
 import CompressIcon from '../icons/CompressIcon';
@@ -82,14 +84,14 @@ const PublicView: React.FC<{ onLoginRequest: () => void }> = ({ onLoginRequest }
         }
 
         if (ordersData) {
-            const newItems: ProductionItem[] = ordersData
+            const newItems: ProductionItem[] = (ordersData as any[])
                 .flatMap(order =>
-                    (order.order_items || []).map(item => ({
+                    (order.order_items || []).map((item: any) => ({
                         id: item.id,
                         no_nota: order.no_nota,
-                        customer_name: (order.customers as Customer)?.name || 'N/A',
+                        customer_name: order.customers?.name || 'N/A',
                         deskripsi: item.deskripsi_pesanan || 'Tanpa deskripsi',
-                        bahan_name: (item.bahan as Bahan)?.name || 'N/A',
+                        bahan_name: item.bahan?.name || 'N/A',
                         panjang: item.panjang,
                         lebar: item.lebar,
                         qty: item.qty,

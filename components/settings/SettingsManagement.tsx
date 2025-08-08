@@ -1,7 +1,5 @@
-
-
 import React, { useState } from 'react';
-import { Bank, Asset, Debt, Bahan, Finishing, Printer } from '../../lib/supabaseClient';
+import { Bank, Asset, Debt, Bahan, Finishing } from '../../lib/supabaseClient';
 import BankManagement from './BankManagement';
 import BankIcon from '../icons/BankIcon';
 import AssetIcon from '../icons/AssetIcon';
@@ -12,8 +10,6 @@ import IngredientsIcon from '../icons/IngredientsIcon';
 import BahanManagement from '../bahan/BahanManagement';
 import FinishingIcon from '../icons/FinishingIcon';
 import FinishingManagement from './FinishingManagement';
-import PrinterManagement from './PrinterManagement';
-import PrinterIcon from '../icons/PrinterIcon';
 
 interface SettingsProps {
     banks: Bank[];
@@ -32,10 +28,6 @@ interface SettingsProps {
     addBahan: (data: Omit<Bahan, 'id' | 'created_at' | 'stock_qty'>) => Promise<Bahan>;
     updateBahan: (id: number, data: Partial<Omit<Bahan, 'id' | 'created_at'>>) => Promise<void>;
     deleteBahan: (id: number) => Promise<void>;
-    printers: Printer[];
-    addPrinter: (data: Omit<Printer, 'id' | 'created_at'>) => Promise<Printer>;
-    updatePrinter: (id: number, data: Partial<Omit<Printer, 'id' | 'created_at'>>) => Promise<void>;
-    deletePrinter: (id: number) => Promise<void>;
     finishings: Finishing[];
     addFinishing: (data: Omit<Finishing, 'id' | 'created_at'>) => Promise<Finishing>;
     updateFinishing: (id: number, data: Partial<Omit<Finishing, 'id' | 'created_at'>>) => Promise<void>;
@@ -47,7 +39,6 @@ const settingsTabs = [
     { name: 'Hutang', icon: TrendingDownIcon, component: DebtManagement, props: ['debts', 'addDebt', 'updateDebt', 'deleteDebt'] },
     { name: 'Bahan', icon: IngredientsIcon, component: BahanManagement, props: ['bahanList', 'addBahan', 'updateBahan', 'deleteBahan'] },
     { name: 'Bank', icon: BankIcon, component: BankManagement, props: ['banks', 'addBank', 'updateBank', 'deleteBank'] },
-    { name: 'Printer', icon: PrinterIcon, component: PrinterManagement, props: ['printers', 'addPrinter', 'updatePrinter', 'deletePrinter'] },
     { name: 'Finishing', icon: FinishingIcon, component: FinishingManagement, props: ['finishings', 'addFinishing', 'updateFinishing', 'deleteFinishing'] }
 ];
 

@@ -1,10 +1,8 @@
-
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import EditIcon from '../icons/EditIcon';
 import TrashIcon from '../icons/TrashIcon';
 import PrintIcon from '../icons/PrintIcon';
-import { Customer, CustomerLevel, Bahan, Order, OrderItem, User as AuthUser, ProductionStatus, OrderStatus, Printer, Finishing, OrderRow, NotaSetting } from '../../lib/supabaseClient';
+import { Customer, CustomerLevel, Bahan, Order, OrderItem, User as AuthUser, ProductionStatus, OrderStatus, Finishing, OrderRow, NotaSetting } from '../../lib/supabaseClient';
 import ChevronDownIcon from '../icons/ChevronDownIcon';
 import Pagination from '../Pagination';
 import FilterBar from '../FilterBar';
@@ -98,7 +96,6 @@ interface OrderManagementProps {
     addCustomer: (data: Omit<Customer, 'id' | 'created_at'>) => Promise<Customer>;
     bahanList: Bahan[];
     orders: Order[];
-    printers: Printer[];
     finishings: Finishing[];
     addFinishing: (data: Omit<Finishing, 'id' | 'created_at'>) => Promise<Finishing>;
     updateFinishing: (id: number, data: Partial<Omit<Finishing, 'id' | 'created_at'>>) => Promise<void>;
@@ -192,7 +189,7 @@ const AddCustomerModal: React.FC<{
 };
 
 
-const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustomer, bahanList, orders, printers, finishings, addFinishing, updateFinishing, deleteFinishing, loggedInUser, addOrder, updateOrder, deleteOrder, updateOrderStatus, notaSetting, updateNotaSetting }) => {
+const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustomer, bahanList, orders, finishings, addFinishing, updateFinishing, deleteFinishing, loggedInUser, addOrder, updateOrder, deleteOrder, updateOrderStatus, notaSetting, updateNotaSetting }) => {
     const [editingOrder, setEditingOrder] = useState<Order | null>(null);
     const [formData, setFormData] = useState<LocalOrder>(emptyOrder);
     const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
@@ -414,29 +411,26 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
     };
     
     const handlePrintSpk = (order: Order) => {
-        const defaultPrinter = printers.find(p => p.target === 'SPK' && p.is_default);
-
-        if (!defaultPrinter) {
-            addToast('Tidak ada printer default untuk SPK. Atur di menu Pengaturan.', 'error');
-            return;
-        }
-        addToast(`Mempersiapkan cetak SPK via ${defaultPrinter.name}...`, 'info');
-
-        let styles = '';
-        switch (defaultPrinter.type) {
-            case 'Thermal 58mm':
-                styles = `@page { size: 58mm auto; margin: 2mm; } body { -webkit-print-color-adjust: exact; }`;
-                break;
-            case 'Thermal 80mm':
-                styles = `@page { size: 80mm auto; margin: 3mm; } body { -webkit-print-color-adjust: exact; }`;
-                break;
-            case 'Dot Matrix':
-            default:
-                styles = `@page { margin: 10mm; } body { -webkit-print-color-adjust: exact; }`;
-                break;
-        }
-        
         const spkComponent = <SPK order={order} customer={customers.find(c => c.id === order.pelanggan_id)} bahanList={bahanList} finishings={finishings} />;
+        const styles = `
+            @page { 
+                size: 58mm auto;
+                margin: 0; 
+            }
+            body { 
+                -webkit-print-color-adjust: exact; 
+                margin: 0;
+                padding: 0;
+            }
+            .printable-area {
+                padding: 0 !important;
+                margin: 0 !important;
+                left: 0;
+                top: 0;
+                position: absolute;
+                width: 100%;
+            }
+        `;
         
         setPrintableContent(
             <>

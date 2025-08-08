@@ -1,5 +1,3 @@
-
-
 import React from 'react';
 import CustomerManagement from './customers/CustomerManagement';
 import { EmployeePosition, User as AuthUser } from '../lib/supabaseClient';
@@ -45,7 +43,6 @@ const MainContent: React.FC<MainContentProps> = (props) => {
     orders, addOrder, updateOrder, deleteOrder, addPaymentToOrder, updateOrderStatus, updateOrderItemStatus,
     expenses, addExpense, updateExpense, deleteExpense,
     banks, addBank, updateBank, deleteBank,
-    printers, addPrinter, updatePrinter, deletePrinter,
     assets, addAsset, updateAsset, deleteAsset,
     debts, addDebt, updateDebt, deleteDebt,
     notaSetting, updateNotaSetting,
@@ -80,7 +77,6 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     updateOrder={updateOrder} 
                     deleteOrder={deleteOrder} 
                     updateOrderStatus={updateOrderStatus}
-                    printers={printers}
                     finishings={finishings}
                     addFinishing={addFinishing}
                     updateFinishing={updateFinishing}
@@ -108,7 +104,6 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     employees={employees} 
                     addPaymentToOrder={addPaymentToOrder}
                     banks={banks}
-                    printers={printers}
                     finishings={finishings}
                 />;
       case 'Daftar Pelanggan':
@@ -165,10 +160,6 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     addBahan={addBahan}
                     updateBahan={updateBahan}
                     deleteBahan={deleteBahan}
-                    printers={printers}
-                    addPrinter={addPrinter}
-                    updatePrinter={updatePrinter}
-                    deletePrinter={deletePrinter}
                     finishings={finishings}
                     addFinishing={addFinishing}
                     updateFinishing={updateFinishing}
