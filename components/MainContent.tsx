@@ -66,7 +66,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
   const renderContent = () => {
     switch (activeView) {
       case 'Dashboard':
-        return <DashboardView orders={orders} customers={customers} expenses={expenses} />;
+        return <DashboardView orders={orders} customers={customers} expenses={expenses} finishings={finishings} />;
       case 'Keuangan':
         return <FinanceView orders={orders} expenses={expenses} customers={customers} bahanList={bahanList} employees={employees} banks={banks} />;
       case 'Order':
