@@ -317,22 +317,22 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
             const itemArea = (item.panjang || 0) > 0 && (item.lebar || 0) > 0 ? (item.panjang || 1) * (item.lebar || 1) : 1;
             const jumlah = hargaSatuan * itemArea * item.qty;
 
-            itemsList += `${bahan.name}\\n`;
-            itemsList += `  ${item.qty} x ${formatCurrency(hargaSatuan * itemArea)} = ${formatCurrency(jumlah)}\\n`;
+            itemsList += `${bahan.name}\n`;
+            itemsList += `  ${item.qty} x ${formatCurrency(hargaSatuan * itemArea)} = ${formatCurrency(jumlah)}\n`;
         });
         
-        let message = `*CELENGAN*\\nJl. Prof. Moh. Yamin,Cerbonan,Karanganyar\\n(Timur Stadion 45)\\nTelp: 0812-3456-7890\\n--------------------------------\\n`;
-        message += `No Nota  : ${selectedOrder.no_nota}\\n`;
-        message += `Tanggal  : ${new Date(selectedOrder.tanggal).toLocaleString('id-ID', {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'})}\\n`;
-        message += `Kasir    : ${kasir}\\n`;
-        message += `Pelanggan: ${customer?.name || 'N/A'}\\n`;
-        message += `--------------------------------\\n`;
+        let message = `*Nala Media*\nJl. Prof. Moh. Yamin,Cerbonan,Karanganyar\n(Timur Stadion 45)\nTelp: 0813-9872-7722\n--------------------------------\n`;
+        message += `No Nota  : ${selectedOrder.no_nota}\n`;
+        message += `Tanggal  : ${new Date(selectedOrder.tanggal).toLocaleString('id-ID', {day: '2-digit', month: '2-digit', year: 'numeric'})}\n`;
+        message += `Kasir    : ${kasir}\n`;
+        message += `Pelanggan: ${customer?.name || 'N/A'}\n`;
+        message += `--------------------------------\n`;
         message += itemsList;
-        message += `--------------------------------\\n`;
-        message += `Total    : *${formatCurrency(totalTagihan)}*\\n`;
-        message += `Bayar    : ${formatCurrency(totalPaid)}\\n`;
-        message += `Sisa     : ${formatCurrency(totalTagihan - totalPaid)}\\n`;
-        message += `--------------------------------\\n`;
+        message += `--------------------------------\n`;
+        message += `Total    : *${formatCurrency(totalTagihan)}*\n`;
+        message += `Bayar    : ${formatCurrency(totalPaid)}\n`;
+        message += `Sisa     : ${formatCurrency(totalTagihan - totalPaid)}\n`;
+        message += `--------------------------------\n`;
         message += `Terima kasih!`;
 
         const phone = customer?.phone.replace(/[^0-9]/g, '');
