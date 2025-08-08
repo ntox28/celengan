@@ -204,8 +204,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
     const { addToast } = useToast();
     const ITEMS_PER_PAGE = 5;
     
-    const [selectedOrderForSpk, setSelectedOrderForSpk] = useState<Order | null>(null);
-    const spkRef = useRef<HTMLDivElement>(null);
+    const [printableContent, setPrintableContent] = useState<React.ReactNode | null>(null);
     const formRef = useRef<HTMLDivElement>(null);
     
     const [filters, setFilters] = useState({
@@ -234,6 +233,16 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
 
     const totalPages = Math.ceil(filteredOrders.length / ITEMS_PER_PAGE);
     const currentOrders = filteredOrders.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+    useEffect(() => {
+        if (printableContent) {
+            const timer = setTimeout(() => {
+                window.print();
+                setPrintableContent(null);
+            }, 100);
+            return () => clearTimeout(timer);
+        }
+    }, [printableContent]);
 
     const handleEdit = (order: Order) => {
         setEditingOrder(order);
@@ -411,369 +420,331 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
             addToast('Tidak ada printer default untuk SPK. Atur di menu Pengaturan.', 'error');
             return;
         }
+        addToast(`Mempersiapkan cetak SPK via ${defaultPrinter.name}...`, 'info');
 
-        setSelectedOrderForSpk(order);
-        addToast(`Mencetak SPK menggunakan ${defaultPrinter.name}...`, 'info');
-
-        setTimeout(() => {
-            if (spkRef.current) {
-                const printContents = spkRef.current.innerHTML;
-                const printWindow = window.open('', '', 'height=600,width=400');
-                if (printWindow) {
-                    printWindow.document.write('<html><head><title>Cetak SPK</title>');
-
-                    let styles = '';
-                    switch (defaultPrinter.type) {
-                        case 'Thermal 58mm':
-                            styles = `
-                                @page { size: 58mm auto; margin: 2mm; }
-                                body { font-family: sans-serif; font-size: 8pt; width: 54mm; color: #000; }
-                            `;
-                            break;
-                        case 'Thermal 80mm':
-                             styles = `
-                                @page { size: 80mm auto; margin: 3mm; }
-                                body { font-family: sans-serif; font-size: 9pt; width: 74mm; color: #000; }
-                            `;
-                            break;
-                        case 'Dot Matrix':
-                        default:
-                            styles = `
-                                @page { margin: 10mm; }
-                                body { font-family: sans-serif; font-size: 10pt; color: #000; }
-                            `;
-                            break;
-                    }
-
-                    printWindow.document.write(`
-                        <style>
-                            ${styles}
-                            hr { border: none; border-top: 1px dashed black; margin: 4px 0; width: 100%; }
-                            .text-center { text-align: center; } .font-bold { font-weight: bold; }
-                            .text-lg { font-size: 1.125rem; } .flex { display: flex; }
-                            .w-\\[10\\%\\] { width: 10%; } .w-\\[90\\%\\] { width: 90%; }
-                            .pr-1 { padding-right: 0.25rem; } .mb-1 { margin-bottom: 4px; }
-                            .align-top { vertical-align: top; } .break-words { word-wrap: break-word; }
-                            .mt-0\\.5 { margin-top: 2px; } .pt-0\\.5 { padding-top: 2px; }
-                            .space-y-0\\.5 > * + * { margin-top: 2px; }
-                            p, h1, div { margin: 0; padding: 0; } div.mt-2 { margin-top: 8px; }
-                        </style>
-                    `);
-                    printWindow.document.write('</head><body class="bg-white">');
-                    printWindow.document.write(printContents);
-                    printWindow.document.write('</body></html>');
-                    printWindow.document.close();
-                    printWindow.focus();
-                    printWindow.print();
-                    printWindow.close();
-                }
-            }
-            setSelectedOrderForSpk(null);
-        }, 100);
+        let styles = '';
+        switch (defaultPrinter.type) {
+            case 'Thermal 58mm':
+                styles = `@page { size: 58mm auto; margin: 2mm; } body { -webkit-print-color-adjust: exact; }`;
+                break;
+            case 'Thermal 80mm':
+                styles = `@page { size: 80mm auto; margin: 3mm; } body { -webkit-print-color-adjust: exact; }`;
+                break;
+            case 'Dot Matrix':
+            default:
+                styles = `@page { margin: 10mm; } body { -webkit-print-color-adjust: exact; }`;
+                break;
+        }
+        
+        const spkComponent = <SPK order={order} customer={customers.find(c => c.id === order.pelanggan_id)} bahanList={bahanList} finishings={finishings} />;
+        
+        setPrintableContent(
+            <>
+                <style type="text/css" media="print">{styles}</style>
+                {spkComponent}
+            </>
+        );
     };
 
     return (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 h-full">
-             {isSettingsModalOpen && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50" onClick={() => setIsSettingsModalOpen(false)}>
-                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-2xl p-4 sm:p-6 m-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                        <div className="flex-1 overflow-y-auto">
-                            <NotaManagement settings={notaSetting} onUpdate={updateNotaSetting} />
-                        </div>
-                        <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 text-right">
-                            <button onClick={() => setIsSettingsModalOpen(false)} className="px-6 py-2 rounded-lg text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 transition-colors">
-                                Tutup
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-             {isFinishingModalOpen && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50" onClick={() => setIsFinishingModalOpen(false)}>
-                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-5xl p-4 sm:p-6 m-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                        <div className="flex-1 overflow-y-auto">
-                            <FinishingManagement
-                                finishings={finishings}
-                                addFinishing={addFinishing}
-                                updateFinishing={updateFinishing}
-                                deleteFinishing={deleteFinishing}
-                            />
-                        </div>
-                        <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 text-right">
-                            <button onClick={() => setIsFinishingModalOpen(false)} className="px-6 py-2 rounded-lg text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 transition-colors">
-                                Tutup
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-             {isAddCustomerModalOpen && (
-                <AddCustomerModal 
-                    onClose={() => setIsAddCustomerModalOpen(false)} 
-                    addCustomer={addCustomer}
-                    onCustomerAdded={(newCustomer) => {
-                        setFormData(prev => ({...prev, pelanggan_id: newCustomer.id}));
-                        setIsAddCustomerModalOpen(false);
-                    }}
-                />
-            )}
-
-            <div className="hidden">
-                {selectedOrderForSpk && (
-                    <SPK
-                        ref={spkRef}
-                        order={selectedOrderForSpk}
-                        customer={customers.find(c => c.id === selectedOrderForSpk.pelanggan_id)}
-                        bahanList={bahanList}
-                        finishings={finishings}
-                    />
-                )}
+        <>
+            <div className="printable-area">
+                {printableContent}
             </div>
-
-             {/* Form Column */}
-            <div ref={formRef} className="xl:col-span-1 bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col h-full">
-                <div className="flex justify-between items-center mb-6 flex-shrink-0">
-                    <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                        {editingOrder ? 'Edit Order' : 'Tambah Order Baru'}
-                    </h3>
-                    <div className="flex items-center gap-2">
-                        <button onClick={() => setIsSettingsModalOpen(true)} className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" title="Pengaturan Nota">
-                            <SettingsIcon className="h-5 w-5" />
-                        </button>
-                        <button onClick={handleAddNew} className="text-sm text-pink-600 hover:text-pink-700 dark:text-pink-400 dark:hover:text-pink-300 font-semibold">
-                            Buat Baru
-                        </button>
-                    </div>
-                </div>
-                <div className="flex-1 overflow-y-auto -mr-3 pr-3 no-scrollbar">
-                    <form onSubmit={handleSubmit} className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label htmlFor="no_nota" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">No. Nota</label>
-                                <div className="w-full pl-4 pr-4 py-3 bg-slate-100 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-600 rounded-md text-slate-500 dark:text-slate-400">
-                                    {editingOrder ? formData.no_nota : "Akan digenerate otomatis"}
-                                </div>
+            <div className="no-print">
+                 {isSettingsModalOpen && (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50" onClick={() => setIsSettingsModalOpen(false)}>
+                        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-2xl p-4 sm:p-6 m-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                            <div className="flex-1 overflow-y-auto">
+                                <NotaManagement settings={notaSetting} onUpdate={updateNotaSetting} />
                             </div>
-                            <div>
-                                <label htmlFor="tanggal" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Tanggal</label>
-                                <input type="date" name="tanggal" id="tanggal" value={formData.tanggal} onChange={handleFormChange} required className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100" />
-                            </div>
-                        </div>
-
-                         <div>
-                            <label htmlFor="pelanggan_id" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Pelanggan</label>
-                            <div className="flex items-center gap-2">
-                                <select name="pelanggan_id" id="pelanggan_id" value={formData.pelanggan_id} onChange={handleFormChange} required className="flex-grow w-full pl-3 pr-10 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100 appearance-none" style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em' }}>
-                                    <option value={0} disabled>Pilih Pelanggan</option>
-                                    {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                </select>
-                                <button
-                                    type="button"
-                                    onClick={() => setIsAddCustomerModalOpen(true)}
-                                    className="p-2 flex-shrink-0 rounded-lg text-pink-600 bg-pink-100 dark:bg-pink-900/40 dark:text-pink-400 hover:bg-pink-200 dark:hover:bg-pink-900/60 transition-colors"
-                                    title="Tambah Pelanggan Baru"
-                                >
-                                    <UserPlusIcon className="h-6 w-6" />
+                            <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 text-right">
+                                <button onClick={() => setIsSettingsModalOpen(false)} className="px-6 py-2 rounded-lg text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 transition-colors">
+                                    Tutup
                                 </button>
                             </div>
                         </div>
+                    </div>
+                )}
+                 {isFinishingModalOpen && (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50" onClick={() => setIsFinishingModalOpen(false)}>
+                        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-5xl p-4 sm:p-6 m-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                            <div className="flex-1 overflow-y-auto">
+                                <FinishingManagement
+                                    finishings={finishings}
+                                    addFinishing={addFinishing}
+                                    updateFinishing={updateFinishing}
+                                    deleteFinishing={deleteFinishing}
+                                />
+                            </div>
+                            <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 text-right">
+                                <button onClick={() => setIsFinishingModalOpen(false)} className="px-6 py-2 rounded-lg text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 transition-colors">
+                                    Tutup
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                 {isAddCustomerModalOpen && (
+                    <AddCustomerModal 
+                        onClose={() => setIsAddCustomerModalOpen(false)} 
+                        addCustomer={addCustomer}
+                        onCustomerAdded={(newCustomer) => {
+                            setFormData(prev => ({...prev, pelanggan_id: newCustomer.id}));
+                            setIsAddCustomerModalOpen(false);
+                        }}
+                    />
+                )}
 
-                        <div className="space-y-4">
-                            {formData.order_items.map((item, index) => (
-                                <div key={item.local_id} className="p-4 rounded-lg bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 space-y-4 relative">
-                                    <h4 className="font-semibold text-pink-600">Detail Pesanan #{index + 1}</h4>
-                                    <div className="grid grid-cols-1 gap-4">
-                                        <div>
-                                            <label htmlFor={`bahan_id-${index}`} className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Bahan</label>
-                                            <select name="bahan_id" id={`bahan_id-${index}`} value={item.bahan_id} onChange={(e) => handleItemChange(index, e)} required className="w-full pl-3 pr-10 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100 appearance-none" style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em' }}>
-                                                <option value={0} disabled>Pilih Bahan</option>
-                                                {bahanList.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label htmlFor={`deskripsi_pesanan-${index}`} className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Deskripsi Pesanan</label>
-                                            <input type="text" name="deskripsi_pesanan" id={`deskripsi_pesanan-${index}`} value={item.deskripsi_pesanan || ''} onChange={(e) => handleItemChange(index, e)} className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100" />
-                                        </div>
-                                        <div>
-                                            <div className="flex justify-between items-center mb-1">
-                                                <label htmlFor={`finishing_id-${index}`} className="block text-sm font-medium text-slate-600 dark:text-slate-300">Finishing</label>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setIsFinishingModalOpen(true)}
-                                                    className="p-1 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
-                                                    title="Atur Opsi Finishing"
-                                                >
-                                                    <SettingsIcon className="h-4 w-4" />
-                                                </button>
-                                            </div>
-                                            <select name="finishing_id" id={`finishing_id-${index}`} value={item.finishing_id || ''} onChange={(e) => handleItemChange(index, e)} className="w-full pl-3 pr-10 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100 appearance-none" style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em' }}>
-                                                <option value="">Tanpa Finishing</option>
-                                                {finishings.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                                            </select>
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 h-full">
+                     {/* Form Column */}
+                    <div ref={formRef} className="xl:col-span-1 bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col h-full">
+                        <div className="flex justify-between items-center mb-6 flex-shrink-0">
+                            <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">
+                                {editingOrder ? 'Edit Order' : 'Tambah Order Baru'}
+                            </h3>
+                            <div className="flex items-center gap-2">
+                                <button onClick={() => setIsSettingsModalOpen(true)} className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" title="Pengaturan Nota">
+                                    <SettingsIcon className="h-5 w-5" />
+                                </button>
+                                <button onClick={handleAddNew} className="text-sm text-pink-600 hover:text-pink-700 dark:text-pink-400 dark:hover:text-pink-300 font-semibold">
+                                    Buat Baru
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-y-auto -mr-3 pr-3 no-scrollbar">
+                            <form onSubmit={handleSubmit} className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label htmlFor="no_nota" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">No. Nota</label>
+                                        <div className="w-full pl-4 pr-4 py-3 bg-slate-100 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-600 rounded-md text-slate-500 dark:text-slate-400">
+                                            {editingOrder ? formData.no_nota : "Akan digenerate otomatis"}
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-3 gap-4">
-                                        <div>
-                                            <label htmlFor={`panjang-${index}`} className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Panjang (m)</label>
-                                            <input type="text" name="panjang" id={`panjang-${index}`} value={item.panjang} onChange={(e) => handleItemChange(index, e)} className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100" />
-                                        </div>
-                                        <div>
-                                            <label htmlFor={`lebar-${index}`} className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Lebar (m)</label>
-                                            <input type="text" name="lebar" id={`lebar-${index}`} value={item.lebar} onChange={(e) => handleItemChange(index, e)} className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100" />
-                                        </div>
-                                        <div>
-                                            <label htmlFor={`qty-${index}`} className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Qty</label>
-                                            <input type="number" name="qty" id={`qty-${index}`} value={item.qty} onChange={(e) => handleItemChange(index, e)} required min="1" className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100" />
-                                        </div>
+                                    <div>
+                                        <label htmlFor="tanggal" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Tanggal</label>
+                                        <input type="date" name="tanggal" id="tanggal" value={formData.tanggal} onChange={handleFormChange} required className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100" />
                                     </div>
-                                    {formData.order_items.length > 1 && (
-                                        <button type="button" onClick={() => removeItem(index)} className="absolute top-3 right-3 text-red-600 hover:text-red-500 p-1 rounded-full bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500">
-                                            <TrashIcon className="w-5 h-5" />
-                                        </button>
-                                    )}
                                 </div>
-                            ))}
-                        </div>
-                        <button type="button" onClick={addItem} className="w-full py-2 rounded-lg text-pink-600 bg-pink-100 dark:bg-pink-900/40 dark:text-pink-400 hover:bg-pink-200 dark:hover:bg-pink-900/60 border border-pink-200 dark:border-pink-900/50 transition-colors">Tambah Item</button>
 
-                        <div className="flex flex-col pt-6 border-t border-slate-200 dark:border-slate-700 mt-6 flex-shrink-0 gap-4">
-                            <div>
-                                <p className="text-sm text-slate-500 dark:text-slate-400">Estimasi Total Harga</p>
-                                <p className="text-2xl font-bold text-pink-600 dark:text-pink-500">{formatCurrency(modalOrderTotal)}</p>
-                            </div>
-                            <div className="flex">
-                                <button type="submit" disabled={isLoading} className="w-full px-6 py-3 rounded-lg text-white bg-pink-600 hover:bg-pink-700 transition-colors disabled:bg-pink-300">{isLoading ? 'Menyimpan...' : (editingOrder ? 'Simpan Perubahan' : 'Simpan Order')}</button>
-                            </div>
-                        </div>
-                    </form>
-                 </div>
-            </div>
-
-            {/* Table Column */}
-            <div className="xl:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col h-full">
-                <FilterBar
-                    customers={customers}
-                    statusOptions={paymentStatusOptions}
-                    filters={filters}
-                    onFilterChange={handleFilterChange}
-                    onReset={handleResetFilters}
-                />
-                
-                <div className="flex-1 overflow-y-auto -mx-6 px-6">
-                     <table className="w-full text-sm text-left text-slate-700 dark:text-slate-300 responsive-table">
-                        <thead className="text-xs text-slate-500 dark:text-slate-400 uppercase bg-slate-50 dark:bg-slate-700/50 sticky top-0 backdrop-blur-sm">
-                            <tr>
-                                <th scope="col" className="px-6 py-3">No. Nota</th>
-                                <th scope="col" className="px-6 py-3">Pelanggan</th>
-                                <th scope="col" className="px-6 py-3 text-center">Status</th>
-                                <th scope="col" className="px-6 py-3 text-center">Detail</th>
-                                <th scope="col" className="px-6 py-3 text-center">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-200 dark:divide-slate-700 md:divide-y-0">
-                            {currentOrders.map((order) => (
-                               <React.Fragment key={order.id}>
-                                <tr 
-                                    className={`hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors duration-200 ${editingOrder?.id === order.id ? 'bg-pink-50 dark:bg-pink-900/20' : ''}`}
-                                >
-                                    <th scope="row" className="px-6 py-4 font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap">{order.no_nota}</th>
-                                    <td data-label="Pelanggan" className="px-6 py-4">{getCustomerName(order.pelanggan_id)}</td>
-                                    <td data-label="Status Pesanan" className="px-6 py-4 text-center">
-                                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                            order.status_pesanan === 'Proses'
-                                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300'
-                                                : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300'
-                                        }`}>
-                                            {order.status_pesanan}
-                                        </span>
-                                    </td>
-                                    <td data-label="Detail Item" className="px-6 py-4 text-center">
+                                 <div>
+                                    <label htmlFor="pelanggan_id" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Pelanggan</label>
+                                    <div className="flex items-center gap-2">
+                                        <select name="pelanggan_id" id="pelanggan_id" value={formData.pelanggan_id} onChange={handleFormChange} required className="flex-grow w-full pl-3 pr-10 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100 appearance-none" style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em' }}>
+                                            <option value={0} disabled>Pilih Pelanggan</option>
+                                            {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        </select>
                                         <button
-                                            onClick={() => toggleExpand(order.id)}
-                                            className="flex items-center justify-center w-full space-x-2 text-cyan-600 hover:text-cyan-500 dark:text-cyan-400 dark:hover:text-cyan-300 transition-colors"
+                                            type="button"
+                                            onClick={() => setIsAddCustomerModalOpen(true)}
+                                            className="p-2 flex-shrink-0 rounded-lg text-pink-600 bg-pink-100 dark:bg-pink-900/40 dark:text-pink-400 hover:bg-pink-200 dark:hover:bg-pink-900/60 transition-colors"
+                                            title="Tambah Pelanggan Baru"
                                         >
-                                            <span>{order.order_items.length} item</span>
-                                            <ChevronDownIcon className={`w-5 h-5 transition-transform duration-300 ${expandedOrderId === order.id ? 'rotate-180' : ''}`} />
+                                            <UserPlusIcon className="h-6 w-6" />
                                         </button>
-                                    </td>
-                                    <td data-label="Aksi" className="px-6 py-4 text-center space-x-2">
-                                        {order.status_pesanan === 'Pending' && (
-                                            <button
-                                                onClick={() => handleProcessOrder(order.id)}
-                                                className="text-green-600 hover:text-green-500 dark:text-green-400 dark:hover:text-green-300 transition-colors p-1"
-                                                title="Proses Pesanan"
-                                            >
-                                                <PlayCircleIcon className="w-5 h-5" />
-                                            </button>
-                                        )}
-                                        <button onClick={() => handleEdit(order)} className="text-cyan-600 hover:text-cyan-500 dark:text-cyan-400 dark:hover:text-cyan-300 transition-colors p-1" title="Edit Pesanan">
-                                            <EditIcon className="w-5 h-5" />
-                                        </button>
-                                        <button onClick={() => handlePrintSpk(order)} className="text-slate-600 hover:text-slate-500 dark:text-slate-400 dark:hover:text-slate-300 transition-colors p-1" title="Cetak SPK">
-                                            <PrintIcon className="w-5 h-5" />
-                                        </button>
-                                        <button onClick={() => handleDelete(order.id)} className="text-red-600 hover:text-red-500 dark:text-red-500 dark:hover:text-red-400 transition-colors p-1" title="Hapus Pesanan">
-                                            <TrashIcon className="w-5 h-5" />
-                                        </button>
-                                    </td>
-                                </tr>
-                                {expandedOrderId === order.id && (
-                                    <tr className="bg-slate-50 dark:bg-slate-800/50 md:table-row">
-                                        <td colSpan={6} className="p-0">
-                                            <div className="px-4 sm:px-6 py-4">
-                                                <h4 className="text-md font-semibold text-slate-700 dark:text-slate-200 mb-3">Rincian Item Pesanan:</h4>
-                                                <div className="border border-slate-200 dark:border-slate-600 rounded-lg overflow-hidden">
-                                                    <table className="w-full text-sm text-left text-slate-600 dark:text-slate-300">
-                                                        <thead className="text-xs text-slate-500 dark:text-slate-400 uppercase bg-slate-100 dark:bg-slate-700">
-                                                            <tr>
-                                                                <th scope="col" className="px-4 py-2">Bahan</th>
-                                                                <th scope="col" className="px-4 py-2">Deskripsi</th>
-                                                                <th scope="col" className="px-4 py-2 text-center">Qty</th>
-                                                                <th scope="col" className="px-4 py-2 text-center">Aksi</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-slate-200 dark:divide-slate-600">
-                                                            {order.order_items.map(item => {
-                                                                const bahan = bahanList.find(b => b.id === item.bahan_id);
-                                                                return (
-                                                                    <tr key={item.id}>
-                                                                        <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">{bahan?.name || 'N/A'}</td>
-                                                                        <td className="px-4 py-3">{item.deskripsi_pesanan || '-'}</td>
-                                                                        <td className="px-4 py-3 text-center">{item.qty}</td>
-                                                                        <td className="px-4 py-3 text-center">
-                                                                            <button 
-                                                                                onClick={() => handleCopyItemDetails(order, item)} 
-                                                                                className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 transition-colors p-1"
-                                                                                title="Salin detail item"
-                                                                            >
-                                                                                <CopyIcon className="w-5 h-5" />
-                                                                            </button>
-                                                                        </td>
-                                                                    </tr>
-                                                                );
-                                                            })}
-                                                        </tbody>
-                                                    </table>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    {formData.order_items.map((item, index) => (
+                                        <div key={item.local_id} className="p-4 rounded-lg bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 space-y-4 relative">
+                                            <h4 className="font-semibold text-pink-600">Detail Pesanan #{index + 1}</h4>
+                                            <div className="grid grid-cols-1 gap-4">
+                                                <div>
+                                                    <label htmlFor={`bahan_id-${index}`} className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Bahan</label>
+                                                    <select name="bahan_id" id={`bahan_id-${index}`} value={item.bahan_id} onChange={(e) => handleItemChange(index, e)} required className="w-full pl-3 pr-10 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100 appearance-none" style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em' }}>
+                                                        <option value={0} disabled>Pilih Bahan</option>
+                                                        {bahanList.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                                    </select>
                                                 </div>
-                                                <div className="flex justify-end items-center mt-4 text-right">
-                                                    <span className="text-sm font-medium text-slate-600 dark:text-slate-300 mr-4">Estimasi Total Harga:</span>
-                                                    <span className="text-xl font-bold text-pink-600 dark:text-pink-500">
-                                                        {formatCurrency(calculateTotal(order, customers, bahanList))}
-                                                    </span>
+                                                <div>
+                                                    <label htmlFor={`deskripsi_pesanan-${index}`} className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Deskripsi Pesanan</label>
+                                                    <input type="text" name="deskripsi_pesanan" id={`deskripsi_pesanan-${index}`} value={item.deskripsi_pesanan || ''} onChange={(e) => handleItemChange(index, e)} className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100" />
+                                                </div>
+                                                <div>
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <label htmlFor={`finishing_id-${index}`} className="block text-sm font-medium text-slate-600 dark:text-slate-300">Finishing</label>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setIsFinishingModalOpen(true)}
+                                                            className="p-1 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                                                            title="Atur Opsi Finishing"
+                                                        >
+                                                            <SettingsIcon className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
+                                                    <select name="finishing_id" id={`finishing_id-${index}`} value={item.finishing_id || ''} onChange={(e) => handleItemChange(index, e)} className="w-full pl-3 pr-10 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100 appearance-none" style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em' }}>
+                                                        <option value="">Tanpa Finishing</option>
+                                                        {finishings.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                                                    </select>
                                                 </div>
                                             </div>
-                                        </td>
-                                    </tr>
-                                )}
-                               </React.Fragment>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                                            <div className="grid grid-cols-3 gap-4">
+                                                <div>
+                                                    <label htmlFor={`panjang-${index}`} className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Panjang (m)</label>
+                                                    <input type="text" name="panjang" id={`panjang-${index}`} value={item.panjang} onChange={(e) => handleItemChange(index, e)} className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100" />
+                                                </div>
+                                                <div>
+                                                    <label htmlFor={`lebar-${index}`} className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Lebar (m)</label>
+                                                    <input type="text" name="lebar" id={`lebar-${index}`} value={item.lebar} onChange={(e) => handleItemChange(index, e)} className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100" />
+                                                </div>
+                                                <div>
+                                                    <label htmlFor={`qty-${index}`} className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Qty</label>
+                                                    <input type="number" name="qty" id={`qty-${index}`} value={item.qty} onChange={(e) => handleItemChange(index, e)} required min="1" className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100" />
+                                                </div>
+                                            </div>
+                                            {formData.order_items.length > 1 && (
+                                                <button type="button" onClick={() => removeItem(index)} className="absolute top-3 right-3 text-red-600 hover:text-red-500 p-1 rounded-full bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500">
+                                                    <TrashIcon className="w-5 h-5" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                                <button type="button" onClick={addItem} className="w-full py-2 rounded-lg text-pink-600 bg-pink-100 dark:bg-pink-900/40 dark:text-pink-400 hover:bg-pink-200 dark:hover:bg-pink-900/60 border border-pink-200 dark:border-pink-900/50 transition-colors">Tambah Item</button>
 
-                <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+                                <div className="flex flex-col pt-6 border-t border-slate-200 dark:border-slate-700 mt-6 flex-shrink-0 gap-4">
+                                    <div>
+                                        <p className="text-sm text-slate-500 dark:text-slate-400">Estimasi Total Harga</p>
+                                        <p className="text-2xl font-bold text-pink-600 dark:text-pink-500">{formatCurrency(modalOrderTotal)}</p>
+                                    </div>
+                                    <div className="flex">
+                                        <button type="submit" disabled={isLoading} className="w-full px-6 py-3 rounded-lg text-white bg-pink-600 hover:bg-pink-700 transition-colors disabled:bg-pink-300">{isLoading ? 'Menyimpan...' : (editingOrder ? 'Simpan Perubahan' : 'Simpan Order')}</button>
+                                    </div>
+                                </div>
+                            </form>
+                         </div>
+                    </div>
+
+                    {/* Table Column */}
+                    <div className="xl:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col h-full">
+                        <FilterBar
+                            customers={customers}
+                            statusOptions={paymentStatusOptions}
+                            filters={filters}
+                            onFilterChange={handleFilterChange}
+                            onReset={handleResetFilters}
+                        />
+                        
+                        <div className="flex-1 overflow-y-auto -mx-6 px-6">
+                             <table className="w-full text-sm text-left text-slate-700 dark:text-slate-300 responsive-table">
+                                <thead className="text-xs text-slate-500 dark:text-slate-400 uppercase bg-slate-50 dark:bg-slate-700/50 sticky top-0 backdrop-blur-sm">
+                                    <tr>
+                                        <th scope="col" className="px-6 py-3">No. Nota</th>
+                                        <th scope="col" className="px-6 py-3">Pelanggan</th>
+                                        <th scope="col" className="px-6 py-3 text-center">Status</th>
+                                        <th scope="col" className="px-6 py-3 text-center">Detail</th>
+                                        <th scope="col" className="px-6 py-3 text-center">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-200 dark:divide-slate-700 md:divide-y-0">
+                                    {currentOrders.map((order) => (
+                                       <React.Fragment key={order.id}>
+                                        <tr 
+                                            className={`hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors duration-200 ${editingOrder?.id === order.id ? 'bg-pink-50 dark:bg-pink-900/20' : ''}`}
+                                        >
+                                            <th scope="row" className="px-6 py-4 font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap">{order.no_nota}</th>
+                                            <td data-label="Pelanggan" className="px-6 py-4">{getCustomerName(order.pelanggan_id)}</td>
+                                            <td data-label="Status Pesanan" className="px-6 py-4 text-center">
+                                                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                                    order.status_pesanan === 'Proses'
+                                                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300'
+                                                        : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300'
+                                                }`}>
+                                                    {order.status_pesanan}
+                                                </span>
+                                            </td>
+                                            <td data-label="Detail Item" className="px-6 py-4 text-center">
+                                                <button
+                                                    onClick={() => toggleExpand(order.id)}
+                                                    className="flex items-center justify-center w-full space-x-2 text-cyan-600 hover:text-cyan-500 dark:text-cyan-400 dark:hover:text-cyan-300 transition-colors"
+                                                >
+                                                    <span>{order.order_items.length} item</span>
+                                                    <ChevronDownIcon className={`w-5 h-5 transition-transform duration-300 ${expandedOrderId === order.id ? 'rotate-180' : ''}`} />
+                                                </button>
+                                            </td>
+                                            <td data-label="Aksi" className="px-6 py-4 text-center space-x-2">
+                                                {order.status_pesanan === 'Pending' && (
+                                                    <button
+                                                        onClick={() => handleProcessOrder(order.id)}
+                                                        className="text-green-600 hover:text-green-500 dark:text-green-400 dark:hover:text-green-300 transition-colors p-1"
+                                                        title="Proses Pesanan"
+                                                    >
+                                                        <PlayCircleIcon className="w-5 h-5" />
+                                                    </button>
+                                                )}
+                                                <button onClick={() => handleEdit(order)} className="text-cyan-600 hover:text-cyan-500 dark:text-cyan-400 dark:hover:text-cyan-300 transition-colors p-1" title="Edit Pesanan">
+                                                    <EditIcon className="w-5 h-5" />
+                                                </button>
+                                                <button onClick={() => handlePrintSpk(order)} className="text-slate-600 hover:text-slate-500 dark:text-slate-400 dark:hover:text-slate-300 transition-colors p-1" title="Cetak SPK">
+                                                    <PrintIcon className="w-5 h-5" />
+                                                </button>
+                                                <button onClick={() => handleDelete(order.id)} className="text-red-600 hover:text-red-500 dark:text-red-500 dark:hover:text-red-400 transition-colors p-1" title="Hapus Pesanan">
+                                                    <TrashIcon className="w-5 h-5" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                        {expandedOrderId === order.id && (
+                                            <tr className="bg-slate-50 dark:bg-slate-800/50 md:table-row">
+                                                <td colSpan={5} className="p-0">
+                                                    <div className="px-4 sm:px-6 py-4">
+                                                        <h4 className="text-md font-semibold text-slate-700 dark:text-slate-200 mb-3">Rincian Item Pesanan:</h4>
+                                                        <div className="border border-slate-200 dark:border-slate-600 rounded-lg overflow-hidden">
+                                                            <table className="w-full text-sm text-left text-slate-600 dark:text-slate-300">
+                                                                <thead className="text-xs text-slate-500 dark:text-slate-400 uppercase bg-slate-100 dark:bg-slate-700">
+                                                                    <tr>
+                                                                        <th scope="col" className="px-4 py-2">Deskripsi</th>
+                                                                        <th scope="col" className="px-4 py-2">Bahan</th>
+                                                                        <th scope="col" className="px-4 py-2 text-center">Ukuran</th>
+                                                                        <th scope="col" className="px-4 py-2 text-center">Qty</th>
+                                                                        <th scope="col" className="px-4 py-2 text-center">Aksi</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody className="divide-y divide-slate-200 dark:divide-slate-600">
+                                                                    {order.order_items.map(item => {
+                                                                        const bahan = bahanList.find(b => b.id === item.bahan_id);
+                                                                        return (
+                                                                            <tr key={item.id}>
+                                                                                <td className="px-4 py-3">{item.deskripsi_pesanan || '-'}</td>
+                                                                                <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">{bahan?.name || 'N/A'}</td>
+                                                                                <td className="px-4 py-3 text-center">{(item.panjang || 0) > 0 && (item.lebar || 0) > 0 ? `${item.panjang}m x ${item.lebar}m` : '-'}</td>
+                                                                                <td className="px-4 py-3 text-center">{item.qty}</td>
+                                                                                <td className="px-4 py-3 text-center">
+                                                                                    <button 
+                                                                                        onClick={() => handleCopyItemDetails(order, item)} 
+                                                                                        className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 transition-colors p-1"
+                                                                                        title="Salin detail item"
+                                                                                    >
+                                                                                        <CopyIcon className="w-5 h-5" />
+                                                                                    </button>
+                                                                                </td>
+                                                                            </tr>
+                                                                        );
+                                                                    })}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                        <div className="flex justify-end items-center mt-4 text-right">
+                                                            <span className="text-sm font-medium text-slate-600 dark:text-slate-300 mr-4">Estimasi Total Harga:</span>
+                                                            <span className="text-xl font-bold text-pink-600 dark:text-pink-500">
+                                                                {formatCurrency(calculateTotal(order, customers, bahanList))}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                       </React.Fragment>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+                    </div>
+                </div>
             </div>
-        </div>
+        </>
     );
 };
 

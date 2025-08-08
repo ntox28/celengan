@@ -92,7 +92,8 @@ const MainContent: React.FC<MainContentProps> = (props) => {
         return <ProductionManagement 
                     orders={orders} 
                     customers={customers} 
-                    bahanList={bahanList} 
+                    bahanList={bahanList}
+                    employees={employees}
                     loggedInUser={user}
                     updateOrderStatus={updateOrderStatus}
                     updateOrderItemStatus={updateOrderItemStatus}

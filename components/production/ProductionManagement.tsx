@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Customer, Bahan, Order, OrderItem, ProductionStatus, User as AuthUser, OrderStatus, Finishing } from '../../lib/supabaseClient';
+import { Customer, Bahan, Order, OrderItem, ProductionStatus, User as AuthUser, OrderStatus, Finishing, Employee } from '../../lib/supabaseClient';
 import ChevronDownIcon from '../icons/ChevronDownIcon';
 import Pagination from '../Pagination';
 import FilterBar from '../FilterBar';
@@ -12,6 +12,7 @@ interface ProductionManagementProps {
     customers: Customer[];
     bahanList: Bahan[];
     finishings: Finishing[];
+    employees: Employee[];
     loggedInUser: AuthUser;
     updateOrderStatus: (orderId: number, status: OrderStatus, pelaksana_id?: string | null) => void;
     updateOrderItemStatus: (orderId: number, itemId: number, status: ProductionStatus) => void;
@@ -34,7 +35,7 @@ const getStatusColor = (status: ProductionStatus) => {
     return colors[status];
 };
 
-const ProductionManagement: React.FC<ProductionManagementProps> = ({ orders, customers, bahanList, finishings, loggedInUser, updateOrderStatus, updateOrderItemStatus }) => {
+const ProductionManagement: React.FC<ProductionManagementProps> = ({ orders, customers, bahanList, finishings, employees, loggedInUser, updateOrderStatus, updateOrderItemStatus }) => {
     const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const { addToast } = useToast();
@@ -90,6 +91,13 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({ orders, cus
     const getCustomerName = (id: number | '' | undefined) => {
         return customers.find(c => c.id === id)?.name || 'N/A';
     }
+
+    const getPelaksanaFirstName = (userId: string | null): string => {
+        if (!userId) return 'Belum Diambil';
+        const employee = employees.find(e => e.user_id === userId);
+        if (!employee || !employee.name) return 'User Tdk Dikenal';
+        return employee.name.split(' ')[0];
+    };
 
     const toggleExpand = (orderId: number) => {
         setExpandedOrderId(expandedOrderId === orderId ? null : orderId);
@@ -157,7 +165,9 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({ orders, cus
                                 <td data-label="Pelaksana" className="px-6 py-4">
                                     {order.pelaksana_id ? (
                                         <div className="flex items-center justify-end md:justify-start gap-2">
-                                            <span className="font-semibold capitalize text-slate-800 dark:text-slate-200">{loggedInUser?.email}</span>
+                                            <span className="font-semibold capitalize text-slate-800 dark:text-slate-200">
+                                                {getPelaksanaFirstName(order.pelaksana_id)}
+                                            </span>
                                             {order.pelaksana_id === loggedInUser.id && (
                                                 <button 
                                                     onClick={() => handleReleaseJob(order.id)} 

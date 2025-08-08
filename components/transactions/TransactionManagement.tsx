@@ -306,7 +306,6 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
         if(!selectedOrder) return;
         const customer = customers.find(c => c.id === selectedOrder.pelanggan_id);
         const totalTagihan = calculateTotal(selectedOrder);
-        const totalPaid = calculateTotalPaid(selectedOrder);
         const kasir = getKasirName(selectedOrder);
         
         let itemsList = '';
@@ -317,7 +316,10 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
             const itemArea = (item.panjang || 0) > 0 && (item.lebar || 0) > 0 ? (item.panjang || 1) * (item.lebar || 1) : 1;
             const jumlah = hargaSatuan * itemArea * item.qty;
 
-            itemsList += `${bahan.name}\n`;
+            itemsList += `${item.deskripsi_pesanan || bahan.name}\n`;
+            if ((item.panjang || 0) > 0 && (item.lebar || 0) > 0) {
+                 itemsList += `${item.panjang}m x ${item.lebar}m\n`;
+            }
             itemsList += `  ${item.qty} x ${formatCurrency(hargaSatuan * itemArea)} = ${formatCurrency(jumlah)}\n`;
         });
         
@@ -330,8 +332,6 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
         message += itemsList;
         message += `--------------------------------\n`;
         message += `Total    : *${formatCurrency(totalTagihan)}*\n`;
-        message += `Bayar    : ${formatCurrency(totalPaid)}\n`;
-        message += `Sisa     : ${formatCurrency(totalTagihan - totalPaid)}\n`;
         message += `--------------------------------\n`;
         message += `Terima kasih!`;
 
