@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Customer, Bahan, Order, OrderItem, ProductionStatus, User as AuthUser, OrderStatus, Finishing, Employee } from '../../lib/supabaseClient';
 import ChevronDownIcon from '../icons/ChevronDownIcon';
@@ -128,6 +129,21 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({ orders, cus
         }
     };
 
+    const getOverallOrderStatus = (order: Order): ProductionStatus => {
+        if (!order.order_items || order.order_items.length === 0) {
+            return 'Belum Dikerjakan';
+        }
+        const statuses = order.order_items.map(item => item.status_produksi);
+
+        if (statuses.every(s => s === 'Selesai')) {
+            return 'Selesai';
+        }
+        if (statuses.some(s => s === 'Proses')) {
+            return 'Proses';
+        }
+        return 'Belum Dikerjakan';
+    };
+
     return (
         <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-lg border border-slate-200 dark:border-slate-700 h-full flex flex-col">
             <div className="flex justify-between items-center mb-6 flex-shrink-0">
@@ -154,12 +170,18 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({ orders, cus
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 dark:divide-slate-700 md:divide-y-0">
-                        {currentOrders.map((order) => (
+                        {currentOrders.map((order) => {
+                           const overallStatus = getOverallOrderStatus(order);
+                           return (
                            <React.Fragment key={order.id}>
                             <tr 
                                 className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors duration-200"
                             >
-                                <th scope="row" className="px-6 py-4 font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap">{order.no_nota}</th>
+                                <th scope="row" className="px-6 py-4 font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap">
+                                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(overallStatus)}`}>
+                                        {order.no_nota}
+                                    </span>
+                                </th>
                                 <td data-label="Tanggal" className="px-6 py-4">{formatDate(order.tanggal)}</td>
                                 <td data-label="Pelanggan" className="px-6 py-4">{getCustomerName(order.pelanggan_id)}</td>
                                 <td data-label="Pelaksana" className="px-6 py-4">
@@ -255,7 +277,7 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({ orders, cus
                                 </tr>
                             )}
                            </React.Fragment>
-                        ))}
+                        )})}
                     </tbody>
                 </table>
             </div>

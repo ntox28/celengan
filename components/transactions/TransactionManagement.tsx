@@ -490,7 +490,11 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
                                             key={order.id} 
                                             className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors duration-200"
                                         >
-                                            <th scope="row" className="px-6 py-4 font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap">{order.no_nota}</th>
+                                            <th scope="row" className="px-6 py-4 font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap">
+                                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${getPaymentStatusColor(order.status_pembayaran)}`}>
+                                                    {order.no_nota}
+                                                </span>
+                                            </th>
                                             <td data-label="Pelanggan" className="px-6 py-4">{customers.find(c => c.id === order.pelanggan_id)?.name || 'N/A'}</td>
                                             <td data-label="Kasir" className="px-6 py-4 capitalize">{getKasirName(order)}</td>
                                             <td data-label="Total Tagihan" className="px-6 py-4 text-right font-semibold">{formatCurrency(total)}</td>

@@ -64,8 +64,26 @@ const PublicView: React.FC<{ onLoginRequest: () => void }> = ({ onLoginRequest }
         };
     }, [items]);
 
+    // Explicit type for complex query result to help TypeScript compiler
+    type FetchedOrder = {
+        no_nota: string;
+        created_at: string;
+        tanggal: string;
+        customers: { name: string } | null;
+        order_items: {
+            id: number;
+            deskripsi_pesanan: string | null;
+            qty: number;
+            status_produksi: ProductionStatus;
+            created_at: string;
+            panjang: number | null;
+            lebar: number | null;
+            bahan: { name: string } | null;
+        }[];
+    };
+
     const fetchProductionData = async () => {
-        const { data: ordersData, error } = await supabase
+        const { data, error } = await supabase
             .from('orders')
             .select(`
                 no_nota,
@@ -77,6 +95,8 @@ const PublicView: React.FC<{ onLoginRequest: () => void }> = ({ onLoginRequest }
             .eq('status_pesanan', 'Proses')
             .order('created_at', { ascending: false });
 
+        const ordersData = data as FetchedOrder[] | null;
+
         if (error) {
             console.error("Error fetching production data:", error);
             if (loading) setLoading(false);
@@ -84,14 +104,14 @@ const PublicView: React.FC<{ onLoginRequest: () => void }> = ({ onLoginRequest }
         }
 
         if (ordersData) {
-            const newItems: ProductionItem[] = (ordersData as any[])
+            const newItems: ProductionItem[] = (ordersData || [])
                 .flatMap(order =>
-                    (order.order_items || []).map((item: any) => ({
+                    (order.order_items || []).map(item => ({
                         id: item.id,
                         no_nota: order.no_nota,
-                        customer_name: order.customers?.name || 'N/A',
+                        customer_name: (order.customers as { name: string } | null)?.name || 'N/A',
                         deskripsi: item.deskripsi_pesanan || 'Tanpa deskripsi',
-                        bahan_name: item.bahan?.name || 'N/A',
+                        bahan_name: (item.bahan as { name: string } | null)?.name || 'N/A',
                         panjang: item.panjang,
                         lebar: item.lebar,
                         qty: item.qty,
