@@ -25,8 +25,9 @@ const SPK = forwardRef<HTMLDivElement, SPKProps>(({ order, customer, bahanList, 
             </div>
             <hr className="border-dashed border-t border-black my-1" />
             <div className="text-center">
-                <p>Nota: {order.no_nota} | {customer?.name || 'N/A'}</p>
-                <p>Masuk: {formatDateForSPK(order.tanggal)}</p>
+                <p className="font-bold text-sm">{customer?.name || 'N/A'}</p>
+                <p className="font-bold">Nota: {order.no_nota}</p>
+                <p>{formatDateForSPK(order.tanggal)}</p>
             </div>
             <hr className="border-dashed border-t border-black my-1" />
             
@@ -65,6 +66,8 @@ const SPK = forwardRef<HTMLDivElement, SPKProps>(({ order, customer, bahanList, 
                 <p>Pastikan semua data benar.</p>
                 <p>Tanyakan ke Office jika ada data</p>
                 <p>yang salah atau kurang!!!</p>
+                <p>tempel struk ini ke barang</p>
+                <p>jika sudah selesai semua</p>
             </div>
         </div>
     );

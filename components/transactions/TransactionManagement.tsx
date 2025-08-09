@@ -83,7 +83,7 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
     const actionMenuRef = useRef<HTMLDivElement>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const { addToast } = useToast();
-    const ITEMS_PER_PAGE = 10;
+    const ITEMS_PER_PAGE = 5;
     
     const [filters, setFilters] = useState({
         customerId: 'all',
@@ -254,7 +254,30 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
          const printWindow = window.open('', '', 'height=600,width=400');
          if (!printWindow) return;
          printWindow.document.write('<html><head><title>Cetak Struk</title>');
-         printWindow.document.write(`<style>@page { size: 58mm auto; margin: 2mm; } body { font-family: sans-serif; font-size: 8pt; width: 54mm; color: #000; } .struk-container { width: 100%; } h1, h2, h3, p, div, span, td, th { font-family: inherit !important; } hr { border: none; border-top: 1px dashed black; margin: 8px 0; } .flex { display: flex; } .font-bold { font-weight: bold; } .items-start { align-items: flex-start; } .justify-between { justify-content: space-between; } .text-center { text-align: center; } .text-right { text-align: right; } .break-words { word-wrap: break-word; } .my-1 { margin-top: 4px; margin-bottom: 4px; } .my-2 { margin-top: 8px; margin-bottom: 8px; } .mb-1 { margin-bottom: 4px; } .pr-1 { padding-right: 4px; } .py-0\\.5 { padding-top: 2px; padding-bottom: 2px; } .w-\\[10\\%\\] { width: 10%; } .w-\\[20\\%\\] { width: 20%; } .w-\\[30\\%\\] { width: 30%; } .w-\\[50\\%\\] { width: 50%; } .w-\\[60\\%\\] { width: 60%; } .w-\\[90\\%\\] { width: 90%; } .space-y-1 > * + * { margin-top: 4px; } .mt-2 { margin-top: 8px; } .leading-tight { line-height: 1.25; } .text-\\[9px\\] { font-size: 9px; }</style>`);
+         printWindow.document.write(`<style>
+            @page { size: 80mm auto; margin: 0mm; } 
+            body { font-family: sans-serif; font-size: 8pt; width: 78mm; color: #000; } 
+            .struk-container { width: 100%; } 
+            h1, h2, h3, p, div, span, td, th { font-family: inherit !important; } 
+            hr { border: none; border-top: 1px dashed black; margin: 8px 0; } 
+            .flex { display: flex; } .font-bold { font-weight: bold; } 
+            .items-start { align-items: flex-start; } 
+            .justify-between { justify-content: space-between; } 
+            .text-center { text-align: center; } .text-right { text-align: right; } 
+            .break-words { word-wrap: break-word; } .my-1 { margin-top: 4px; margin-bottom: 4px; } 
+            .my-2 { margin-top: 8px; margin-bottom: 8px; } 
+            .mb-1 { margin-bottom: 4px; } .pr-1 { padding-right: 4px; } 
+            .py-0\\.5 { padding-top: 2px; padding-bottom: 2px; } 
+            .w-\\[10\\%\\] { width: 10%; } 
+            .w-\\[20\\%\\] { width: 20%; } 
+            .w-\\[30\\%\\] { width: 30%; } 
+            .w-\\[50\\%\\] { width: 50%; } 
+            .w-\\[60\\%\\] { width: 60%; } 
+            .w-\\[90\\%\\] { width: 90%; } 
+            .space-y-1 > * + * { margin-top: 4px; } 
+            .mt-2 { margin-top: 8px; } 
+            .leading-tight { line-height: 1.25; } 
+            .text-\\[9px\\] { font-size: 9px; }</style>`);
          printWindow.document.write('</head><body class="bg-white">');
          printWindow.document.write(`<div class="struk-container">${printContents}</div>`);
          printWindow.document.write('</body></html>');
