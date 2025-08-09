@@ -227,6 +227,7 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({ orders, cus
                                                 <table className="w-full text-sm text-left text-slate-600 dark:text-slate-300">
                                                     <thead className="text-xs text-slate-500 dark:text-slate-400 uppercase bg-slate-100 dark:bg-slate-700">
                                                         <tr>
+                                                            <th scope="col" className="px-4 py-2">Deskripsi Pesanan</th>
                                                             <th scope="col" className="px-4 py-2">Bahan</th>
                                                             <th scope="col" className="px-4 py-2">Finishing</th>
                                                             <th scope="col" className="px-4 py-2">Ukuran</th>
@@ -241,6 +242,7 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({ orders, cus
                                                             const finishing = finishings.find(f => f.id === item.finishing_id);
                                                             return (
                                                                 <tr key={item.id}>
+                                                                    <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">{item.deskripsi_pesanan}</td>
                                                                     <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">{bahan?.name || 'N/A'}</td>
                                                                     <td className="px-4 py-3">{finishing?.name || '-'}</td>
                                                                     <td className="px-4 py-3">{(item.panjang || 0) > 0 && (item.lebar || 0) > 0 ? `${item.panjang}m x ${item.lebar}m` : '-'}</td>
