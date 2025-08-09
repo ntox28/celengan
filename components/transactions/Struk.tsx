@@ -49,28 +49,49 @@ const Struk = forwardRef<HTMLDivElement, StrukProps>(
   return (
     <div ref={ref} className="bg-white text-black font-sans text-[10px] leading-tight uppercase">
       {/* Header */}
-      <div className="text-left">
-        <h1 className="font-bold text-lg leading-tight">NALAMEDIA</h1>
-      </div>
-      <hr className="border-dashed border-t border-black my-1" />
-      <div className="text-left text-[9px] leading-tight mt-2">
+      <div className="text-center" style={{ paddingTop: '4mm', paddingBottom: '2mm' }}>
+  <img 
+    src="https://xkvgflhjcnkythytbkuj.supabase.co/storage/v1/object/public/publik/logo%2078mm%20aja.png" 
+    alt="Logo NALAMEDIA" 
+    style={{ 
+      width: '54mm',       // sedikit kecil dari sebelumnya (56mm)
+      height: 'auto', 
+      marginBottom: '1mm', // jarak pas ke judul
+      display: 'inline-block',
+      objectFit: 'contain',
+      overflow: 'visible',
+    }} 
+  />
+  <h1 className="font-bold text-lg leading-tight" style={{ marginTop: 0, marginBottom: 0 }}>
+    NALAMEDIA
+  </h1>
+</div>
+
+      <hr className="border-dashed border-t border-black my-0.5" />
+      <div className="text-center text-[10px] space-y-0.5 pt-0">
         <div>Jl. Prof. Moh. Yamin</div>
         <div>Cerbonan, Karanganyar</div>
         <div>(Timur Stadion 45)</div>
-        <div>Telp: 0813-9872-7722</div>
+        <div>Whatsapp: 0813-9872-7722</div>
+        <div>Email: nalamedia.kra@gmail.com</div>
       </div>
       <hr className="border-dashed border-black my-0.5" />
 
       {/* Info */}
       <div className="leading-tight space-y-0.5">
-        <div>No Nota   : {order.no_nota}</div>
+        <div className="font-bold text-center">No Nota   : {order.no_nota}</div>
         <div>Tanggal   : {new Date(order.tanggal).toLocaleDateString('id-ID')}</div>
         <div>Kasir     : {kasirName}</div>
-        <div>Pelanggan : {customer?.name || 'N/A'}</div>
+        <div>Pelanggan :</div>
+        <div className="font-bold text-center">{customer?.name || 'N/A'}</div>
       </div>
 
       <hr className="border-dashed border-black my-0.5" />
-      <div className="font-bold">Detail Pesanan</div>
+
+      <div className="flex font-bold">
+                <div className="w-[10%]">No|</div>
+                <div className="w-[90%]">Detail Pesanan</div>
+            </div>
       <hr className="border-dashed border-black my-1" />
 
       {/* Items */}
@@ -93,9 +114,8 @@ const Struk = forwardRef<HTMLDivElement, StrukProps>(
             <div className="w-[90%]">
               <div>{item.deskripsi_pesanan || bahan.name}</div>
               {(item.panjang || 0) > 0 && (item.lebar || 0) > 0 && (
-                <div className="text-[9px]">Ukuran: {item.panjang} x {item.lebar} m</div>
+                <div className="text-[9px]">{item.panjang}x{item.lebar}//{item.qty}Pcs//{formatCurrency(hargaSatuan * area)}</div>
               )}
-              <div className="text-[9px]">{item.qty} x {formatCurrency(hargaSatuan * area)}</div>
               <div className="font-bold">{formatCurrency(jumlah)}</div>
             </div>
           </div>
@@ -104,12 +124,13 @@ const Struk = forwardRef<HTMLDivElement, StrukProps>(
 
       <hr className="border-dashed border-black my-0.5" />
       {/* Total Section */}
-      <div>Subtotal: {formatCurrency(totalTagihan)}</div>
+      <div className="font-bold text-sm">Subtotal: {formatCurrency(totalTagihan)}</div>
+      <hr className="border-dashed border-black my-0.5" />
       <div>Bayar: {formatCurrency(totalPaid)}</div>
       <div className="font-bold text-sm">Sisa: {formatCurrency(totalTagihan - totalPaid)}</div>
 
       <hr className="border-dashed border-black my-2" />
-      <div className="text-left text-[9px] mt-1 space-y-1">
+      <div className="text-center text-[9px] space-y-0.5 pt-1">
         <p>Mohon barang dicek kembali.</p>
         <p>Komplain 1x24 Jam.</p>
         <p className="font-bold">Terima Kasih!</p>

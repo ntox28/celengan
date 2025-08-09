@@ -149,7 +149,8 @@ const DashboardComponent: React.FC<DashboardProps> = (props) => {
       <main className="flex-1 flex flex-col">
         <MainContent 
             {...props}
-            activeView={activeView} 
+            activeView={activeView}
+            setActiveView={setActiveView}
             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         />
       </main>

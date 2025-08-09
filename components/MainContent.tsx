@@ -3,7 +3,6 @@ import CustomerManagement from './customers/CustomerManagement';
 import { EmployeePosition, User as AuthUser } from '../lib/supabaseClient';
 import EmployeeManagement from './employees/EmployeeManagement';
 import SettingsManagement from './settings/SettingsManagement';
-import BahanManagement from './bahan/BahanManagement';
 import ExpenseManagement from './expenses/ExpenseManagement';
 import OrderManagement from './orders/OrderManagement';
 import ProductionManagement from './production/ProductionManagement';
@@ -14,10 +13,12 @@ import MenuIcon from './icons/MenuIcon';
 import { useAppData } from '../hooks/useAppData';
 import SupplierManagement from './suppliers/SupplierManagement';
 import StockManagement from './stock/StockManagement';
+import GlobalSearch from './GlobalSearch';
 
 type MainContentProps = {
   user: AuthUser;
   activeView: string;
+  setActiveView: (view: string) => void;
   onToggleSidebar: () => void;
 } & ReturnType<typeof useAppData>;
 
@@ -36,7 +37,7 @@ const WelcomeContent: React.FC<{ user: AuthUser; activeView: string }> = ({ user
 
 const MainContent: React.FC<MainContentProps> = (props) => {
   const { 
-    user, activeView,
+    user, activeView, setActiveView,
     customers, addCustomer, updateCustomer, deleteCustomer,
     bahanList, addBahan, updateBahan, deleteBahan,
     employees, addEmployee, updateEmployee, deleteEmployee,
@@ -49,6 +50,8 @@ const MainContent: React.FC<MainContentProps> = (props) => {
     suppliers, addSupplier, updateSupplier, deleteSupplier,
     stockMovements,
     finishings, addFinishing, updateFinishing, deleteFinishing,
+    addBulkPaymentToOrders,
+    updateBahanStock,
     onToggleSidebar
   } = props;
   
@@ -59,13 +62,28 @@ const MainContent: React.FC<MainContentProps> = (props) => {
   const displayName = employee ? employee.name : (user.email || 'Pengguna');
   const avatarSeed = displayName;
 
+  const handleSearchResultSelect = (view: string, id: string | number) => {
+      setActiveView(view);
+      // This is a simplified implementation. A more advanced version might
+      // use context or another state management solution to pass the selected
+      // ID to the target view component for highlighting or filtering.
+  };
 
   const renderContent = () => {
     switch (activeView) {
       case 'Dashboard':
         return <DashboardView orders={orders} customers={customers} expenses={expenses} finishings={finishings} />;
       case 'Keuangan':
-        return <FinanceView orders={orders} expenses={expenses} customers={customers} bahanList={bahanList} employees={employees} banks={banks} />;
+        return <FinanceView 
+                    orders={orders} 
+                    expenses={expenses} 
+                    customers={customers} 
+                    bahanList={bahanList} 
+                    employees={employees} 
+                    banks={banks}
+                    assets={assets}
+                    debts={debts}
+                />;
       case 'Order':
         return <OrderManagement 
                     customers={customers} 
@@ -105,6 +123,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     addPaymentToOrder={addPaymentToOrder}
                     banks={banks}
                     finishings={finishings}
+                    addBulkPaymentToOrders={addBulkPaymentToOrders}
                 />;
       case 'Daftar Pelanggan':
         return <CustomerManagement 
@@ -164,6 +183,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     addFinishing={addFinishing}
                     updateFinishing={updateFinishing}
                     deleteFinishing={deleteFinishing}
+                    updateBahanStock={updateBahanStock}
                 />;
       default:
         return <WelcomeContent user={user} activeView={activeView} />;
@@ -180,7 +200,12 @@ const MainContent: React.FC<MainContentProps> = (props) => {
              </button>
              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100">{activeView}</h1>
         </div>
-        <div className="flex items-center space-x-2 sm:space-x-4 w-full sm:w-auto">
+        <div className="flex items-center justify-end space-x-2 sm:space-x-4 w-full sm:w-auto">
+          <GlobalSearch
+              orders={orders}
+              customers={customers}
+              onResultSelect={handleSearchResultSelect}
+          />
           <div className="text-right flex-shrink-0">
             <p className="text-slate-800 dark:text-slate-200 font-semibold capitalize truncate">{displayName}</p>
             <p className="text-sm text-slate-500 dark:text-slate-400 capitalize">{userRole}</p>

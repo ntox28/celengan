@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { ResponsiveContainer, LineChart, CartesianGrid, XAxis, YAxis, Tooltip, Legend, Line } from 'recharts';
-import { Order, Customer, CustomerLevel, Bahan, Expense, Employee, Bank } from '../../lib/supabaseClient';
+import { Order, Customer, CustomerLevel, Bahan, Expense, Employee, Bank, Asset, Debt } from '../../lib/supabaseClient';
 import StatCard from '../dashboard/StatCard';
 import TrendingUpIcon from '../icons/TrendingUpIcon';
 import TrendingDownIcon from '../icons/TrendingDownIcon';
@@ -12,6 +12,7 @@ import Pagination from '../Pagination';
 import DocumentReportIcon from '../icons/DocumentReportIcon';
 import Reports from './Reports';
 import { useTheme } from '../../hooks/useTheme';
+import UserIcon from '../icons/UserIcon';
 
 interface FinanceViewProps {
     orders: Order[];
@@ -20,6 +21,8 @@ interface FinanceViewProps {
     bahanList: Bahan[];
     employees: Employee[];
     banks: Bank[];
+    assets: Asset[];
+    debts: Debt[];
 }
 
 const formatCurrency = (value: number) => {
@@ -55,6 +58,89 @@ const calculateOrderTotal = (order: Order, customers: Customer[], bahanList: Bah
         const itemTotal = price * itemArea * item.qty;
         return total + itemTotal;
     }, 0);
+};
+
+const OwnerFinancialView: React.FC<{ assets: Asset[], debts: Debt[], orders: Order[], expenses: Expense[] }> = ({ assets, debts, orders, expenses }) => {
+    const { theme } = useTheme();
+
+    const totalAssets = useMemo(() => assets.reduce((sum, asset) => sum + asset.purchase_price, 0), [assets]);
+    const totalDebts = useMemo(() => debts.filter(d => d.status !== 'Lunas').reduce((sum, debt) => sum + debt.total_amount, 0), [debts]);
+    const netWorth = totalAssets - totalDebts;
+
+    const monthlyPerformanceData = useMemo(() => {
+        const data = [];
+        const today = new Date();
+        for (let i = 11; i >= 0; i--) {
+            const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+            const monthStartStr = date.toISOString().split('T')[0];
+            const nextMonth = new Date(today.getFullYear(), today.getMonth() - i + 1, 1);
+            const monthEndStr = new Date(nextMonth.getTime() - 1).toISOString().split('T')[0];
+
+            const monthName = date.toLocaleString('id-ID', { month: 'short', year: '2-digit' });
+            
+            const revenueThisMonth = orders.flatMap(o => o.payments)
+                .filter(p => p.payment_date >= monthStartStr && p.payment_date <= monthEndStr)
+                .reduce((sum, p) => sum + p.amount, 0);
+            
+            const expensesThisMonth = expenses
+                .filter(e => e.tanggal >= monthStartStr && e.tanggal <= monthEndStr)
+                .reduce((sum, e) => sum + (e.harga * e.qty), 0);
+            
+            data.push({
+                name: monthName,
+                Pendapatan: revenueThisMonth,
+                Pengeluaran: expensesThisMonth,
+                'Laba Bersih': revenueThisMonth - expensesThisMonth,
+            });
+        }
+        return data;
+    }, [orders, expenses]);
+    
+    const chartFontColor = theme === 'dark' ? '#94a3b8' : '#64748b';
+    const chartGridColor = theme === 'dark' ? '#334155' : '#e2e8f0';
+
+    return (
+        <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className={`bg-white dark:bg-slate-800 p-6 rounded-lg border border-green-500/30`}>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">Total Aset</p>
+                    <p className="text-3xl font-bold text-green-600 dark:text-green-400 mt-1">{formatCurrency(totalAssets)}</p>
+                </div>
+                <div className={`bg-white dark:bg-slate-800 p-6 rounded-lg border border-red-500/30`}>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">Total Hutang</p>
+                    <p className="text-3xl font-bold text-red-600 dark:text-red-400 mt-1">{formatCurrency(totalDebts)}</p>
+                </div>
+                 <div className={`bg-white dark:bg-slate-800 p-6 rounded-lg border ${netWorth >= 0 ? 'border-green-500/30' : 'border-red-500/30'}`}>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">Modal Bersih</p>
+                    <p className={`text-3xl font-bold mt-1 ${netWorth >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{formatCurrency(netWorth)}</p>
+                </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">Tren Laba Bersih (12 Bulan Terakhir)</h3>
+                <ResponsiveContainer width="100%" height={350}>
+                    <LineChart data={monthlyPerformanceData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={chartGridColor} />
+                        <XAxis dataKey="name" stroke={chartFontColor} fontSize={12} tickLine={false} axisLine={false} />
+                        <YAxis stroke={chartFontColor} fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${formatCurrency(value as number).replace('Rp', '')}`} />
+                        <Tooltip
+                            contentStyle={{ 
+                                backgroundColor: theme === 'dark' ? '#1e293b' : '#ffffff',
+                                border: `1px solid ${chartGridColor}`,
+                                borderRadius: '0.5rem' 
+                            }}
+                            labelStyle={{ color: theme === 'dark' ? '#f1f5f9' : '#334155' }}
+                            formatter={(value, name) => [formatCurrency(value as number), name]}
+                        />
+                        <Legend wrapperStyle={{fontSize: "14px", color: chartFontColor}}/>
+                        <Line type="monotone" dataKey="Pendapatan" stroke="#22c55e" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 8 }} />
+                        <Line type="monotone" dataKey="Pengeluaran" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 8 }}/>
+                        <Line type="monotone" dataKey="Laba Bersih" name="Laba Bersih" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 8 }} />
+                    </LineChart>
+                </ResponsiveContainer>
+            </div>
+        </div>
+    );
 };
 
 const FinanceView: React.FC<FinanceViewProps> = (props) => {
@@ -268,12 +354,24 @@ const FinanceView: React.FC<FinanceViewProps> = (props) => {
                         <DocumentReportIcon className="w-5 h-5 mr-2" />
                         Laporan
                     </button>
+                    <button
+                        onClick={() => setActiveTab('owner')}
+                        className={`flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                            activeTab === 'owner'
+                                ? 'border-pink-600 text-pink-600'
+                                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:border-slate-400 dark:hover:border-slate-500'
+                        }`}
+                    >
+                        <UserIcon className="w-5 h-5 mr-2" />
+                        Owner Financial
+                    </button>
                 </nav>
             </div>
             
             <div>
                 {activeTab === 'summary' && <SummaryView />}
                 {activeTab === 'reports' && <Reports {...props} calculateOrderTotal={calculateOrderTotal} getPriceForCustomer={getPriceForCustomer} formatCurrency={formatCurrency} />}
+                {activeTab === 'owner' && <OwnerFinancialView assets={props.assets} debts={props.debts} orders={props.orders} expenses={props.expenses} />}
             </div>
         </div>
     );

@@ -1,7 +1,7 @@
 
 
 import { useState, useEffect, useMemo } from 'react';
-import { supabase, Customer, Employee, Bahan, Expense, Order, OrderItem, Payment, User, Bank, Asset, Debt, NotaSetting, Supplier, StockMovement, Finishing, OrderStatus, ProductionStatus, OrderRow, Database, CustomerLevel } from '../lib/supabaseClient';
+import { supabase, Customer, Employee, Bahan, Expense, Order, OrderItem, Payment, User, Bank, Asset, Debt, NotaSetting, Supplier, StockMovement, Finishing, OrderStatus, ProductionStatus, OrderRow, Database, CustomerLevel, PaymentStatus } from '../lib/supabaseClient';
 import { useToast } from './useToast';
 
 // Type definitions for complex parameters
@@ -307,6 +307,52 @@ export const useAppData = (user: User | undefined) => {
         else setStockMovements(newMovements || []);
     };
 
+    const updateBahanStock = async (bahanId: number, newStockQty: number, notes: string) => {
+        // 1. Get current stock from state to calculate difference
+        const bahan = bahanList.find(b => b.id === bahanId);
+        if (!bahan) {
+            addToast(`Bahan tidak ditemukan.`, 'error');
+            throw new Error('Bahan not found');
+        }
+        const currentStock = bahan.stock_qty || 0;
+        const difference = newStockQty - currentStock;
+    
+        if (Math.abs(difference) < 0.001) {
+            return;
+        }
+    
+        // 2. Create stock movement record
+        const movementData: Omit<StockMovement, 'id' | 'created_at'> = {
+            bahan_id: bahanId,
+            type: difference > 0 ? 'in' : 'out',
+            quantity: Math.abs(difference),
+            supplier_id: null,
+            notes: notes,
+        };
+        const { error: moveError } = await supabase.from('stock_movements').insert(movementData as any);
+        if (moveError) {
+            addToast(`Gagal mencatat penyesuaian stok: ${moveError.message}`, 'error');
+            throw moveError;
+        }
+    
+        // 3. Update stock_qty on bahan table
+        const { data: updatedBahan, error: updateError } = await supabase.from('bahan').update({ stock_qty: newStockQty } as any).eq('id', bahanId).select().single();
+        if (updateError) {
+            addToast(`Gagal update stok: ${updateError.message}`, 'error');
+            // TODO: Ideally, roll back the stock_movement insert here.
+            throw updateError;
+        }
+        
+        // 4. Update local state
+        if (updatedBahan) {
+            setBahanList(prev => prev.map(b => b.id === bahanId ? updatedBahan : b));
+        }
+        
+        // Refetch all movements to ensure consistency
+        const { data: newMovements } = await supabase.from('stock_movements').select('*');
+        if (newMovements) setStockMovements(newMovements);
+    };
+
     const addExpense = async (data: Omit<Expense, 'id' | 'created_at'>) => {
         await createRecord('expenses', data, setExpenses, 'Pengeluaran berhasil ditambahkan.');
         if (data.jenis_pengeluaran === 'Bahan' && data.bahan_id && data.qty > 0) {
@@ -478,6 +524,72 @@ export const useAppData = (user: User | undefined) => {
         }
     };
 
+    const addBulkPaymentToOrders = async (
+        paymentData: Omit<Payment, 'id' | 'created_at' | 'order_id' | 'amount'>,
+        totalPaymentAmount: number,
+        ordersToPay: Order[]
+    ) => {
+        let remainingPayment = totalPaymentAmount;
+        const sortedOrders = [...ordersToPay].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    
+        const paymentInserts: Omit<Payment, 'id' | 'created_at'>[] = [];
+        const orderUpdatePayloads: { id: number; status_pembayaran: PaymentStatus }[] = [];
+    
+        for (const order of sortedOrders) {
+            if (remainingPayment <= 0) break;
+    
+            const totalBill = calculateOrderTotal(order, customers, bahanList);
+            const totalPaid = order.payments.reduce((sum, p) => sum + p.amount, 0);
+            const balanceDue = Math.max(0, totalBill - totalPaid);
+    
+            if (balanceDue <= 0.01) continue; // Skip if paid or very close to paid
+    
+            const amountToPay = Math.min(remainingPayment, balanceDue);
+    
+            paymentInserts.push({ ...paymentData, order_id: order.id, amount: amountToPay });
+            remainingPayment -= amountToPay;
+    
+            // Check if this payment makes the order fully paid
+            if (amountToPay >= balanceDue - 0.01) {
+                orderUpdatePayloads.push({ id: order.id, status_pembayaran: 'Lunas' });
+            }
+        }
+    
+        if (paymentInserts.length === 0) {
+            addToast('Tidak ada pembayaran yang dapat diproses.', 'info');
+            return;
+        }
+    
+        try {
+            const { error: insertError } = await supabase.from('payments').insert(paymentInserts as any);
+            if (insertError) throw insertError;
+    
+            if (orderUpdatePayloads.length > 0) {
+                // Supabase JS v2 doesn't support bulk updates easily. We loop.
+                const updatePromises = orderUpdatePayloads.map(update =>
+                    supabase.from('orders').update({ status_pembayaran: update.status_pembayaran } as any).eq('id', update.id)
+                );
+                const results = await Promise.all(updatePromises);
+                const updateError = results.find(res => res.error);
+                if (updateError) {
+                    addToast(`Beberapa status order gagal diperbarui: ${updateError.error?.message}`, 'error');
+                }
+            }
+        } catch (error: any) {
+            addToast(`Gagal memproses pembayaran: ${error.message}`, 'error');
+            throw error;
+        } finally {
+            // Always refetch to ensure client state is consistent with the database
+            const { data: allOrders, error: fetchError } = await supabase.from('orders').select('*, order_items(*), payments(*)');
+            if (fetchError) {
+                addToast('Gagal menyinkronkan data terbaru, silakan muat ulang halaman.', 'error');
+            } else {
+                setOrders(allOrders as Order[] || []);
+                addToast(`${paymentInserts.length} pembayaran berhasil diproses.`, 'success');
+            }
+        }
+    };
+
     const updateOrderStatus = async (orderId: number, status: OrderStatus, pelaksana_id: string | null = null) => {
         const { data: updatedOrder, error } = await supabase.from('orders').update({ status_pesanan: status, pelaksana_id } as any).eq('id', orderId).select().single();
         if (error) { addToast(`Gagal update status order: ${error.message}`, 'error'); return; }
@@ -526,7 +638,7 @@ export const useAppData = (user: User | undefined) => {
         employees, addEmployee, updateEmployee, deleteEmployee,
         customers, addCustomer, updateCustomer, deleteCustomer,
         bahanList, addBahan, updateBahan, deleteBahan,
-        orders, addOrder, updateOrder, deleteOrder, addPaymentToOrder, updateOrderStatus, updateOrderItemStatus,
+        orders, addOrder, updateOrder, deleteOrder, addPaymentToOrder, addBulkPaymentToOrders, updateOrderStatus, updateOrderItemStatus,
         expenses, addExpense, updateExpense, deleteExpense,
         banks, addBank, updateBank, deleteBank,
         assets: allAssets, addAsset, updateAsset, deleteAsset,
@@ -535,5 +647,6 @@ export const useAppData = (user: User | undefined) => {
         suppliers, addSupplier, updateSupplier, deleteSupplier,
         stockMovements, addStockMovement,
         finishings, addFinishing, updateFinishing, deleteFinishing,
+        updateBahanStock,
     };
 };

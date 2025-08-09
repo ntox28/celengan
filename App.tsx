@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import LoginComponent from './components/Login';
 import DashboardComponent from './components/Dashboard';
-import { User, Session, supabase } from './lib/supabaseClient';
+import { Session, supabase } from './lib/supabaseClient';
 import { ToastProvider, useToast } from './hooks/useToast';
 import { ThemeProvider } from './hooks/useTheme';
 import { useAppData } from './hooks/useAppData';

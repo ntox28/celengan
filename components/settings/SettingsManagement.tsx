@@ -10,6 +10,8 @@ import IngredientsIcon from '../icons/IngredientsIcon';
 import BahanManagement from '../bahan/BahanManagement';
 import FinishingIcon from '../icons/FinishingIcon';
 import FinishingManagement from './FinishingManagement';
+import StockOpnameManagement from '../stock/StockOpnameManagement';
+import ClipboardListIcon from '../icons/ClipboardListIcon';
 
 interface SettingsProps {
     banks: Bank[];
@@ -32,12 +34,14 @@ interface SettingsProps {
     addFinishing: (data: Omit<Finishing, 'id' | 'created_at'>) => Promise<Finishing>;
     updateFinishing: (id: number, data: Partial<Omit<Finishing, 'id' | 'created_at'>>) => Promise<void>;
     deleteFinishing: (id: number) => Promise<void>;
+    updateBahanStock: (bahanId: number, newStockQty: number, notes: string) => Promise<void>;
 }
 
 const settingsTabs = [
     { name: 'Aset', icon: AssetIcon, component: AssetManagement, props: ['assets', 'addAsset', 'updateAsset', 'deleteAsset'] },
     { name: 'Hutang', icon: TrendingDownIcon, component: DebtManagement, props: ['debts', 'addDebt', 'updateDebt', 'deleteDebt'] },
     { name: 'Bahan', icon: IngredientsIcon, component: BahanManagement, props: ['bahanList', 'addBahan', 'updateBahan', 'deleteBahan'] },
+    { name: 'Stock Opname', icon: ClipboardListIcon, component: StockOpnameManagement, props: ['bahanList', 'updateBahanStock'] },
     { name: 'Bank', icon: BankIcon, component: BankManagement, props: ['banks', 'addBank', 'updateBank', 'deleteBank'] },
     { name: 'Finishing', icon: FinishingIcon, component: FinishingManagement, props: ['finishings', 'addFinishing', 'updateFinishing', 'deleteFinishing'] }
 ];
@@ -50,16 +54,16 @@ const SettingsManagement: React.FC<SettingsProps> = (props) => {
         if (!tab) return null;
         const TabComponent = tab.component as React.ElementType;
         const componentProps = tab.props.reduce((acc, propName) => {
-            acc[propName] = props[propName as keyof SettingsProps];
+            acc[propName as keyof SettingsProps] = props[propName as keyof SettingsProps];
             return acc;
         }, {} as any);
         return <TabComponent {...componentProps} />;
     };
 
     return (
-        <div className="flex flex-col lg:flex-row gap-8 h-full">
-            <div className="lg:w-1/4 xl:w-1/5 flex-shrink-0">
-                <nav className="flex lg:flex-col gap-2">
+        <div className="flex flex-col h-full">
+            <div className="border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+                <nav className="-mb-px flex space-x-6 overflow-x-auto no-scrollbar" aria-label="Tabs">
                     {settingsTabs.map(tab => {
                         const Icon = tab.icon;
                         const isActive = activeTab === tab.name;
@@ -67,20 +71,21 @@ const SettingsManagement: React.FC<SettingsProps> = (props) => {
                             <button
                                 key={tab.name}
                                 onClick={() => setActiveTab(tab.name)}
-                                className={`flex items-center w-full px-4 py-3 rounded-lg text-left transition-colors duration-200 ${
+                                className={`flex items-center whitespace-nowrap py-4 px-3 border-b-2 font-medium text-sm transition-colors ${
                                     isActive
-                                        ? 'bg-pink-600 text-white shadow-lg'
-                                        : 'text-slate-600 dark:text-slate-300 hover:bg-pink-50 dark:hover:bg-slate-700 hover:text-pink-600 dark:hover:text-pink-500'
+                                        ? 'border-pink-600 text-pink-600'
+                                        : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:border-slate-400 dark:hover:border-slate-500'
                                 }`}
                             >
-                                <Icon className="h-5 w-5 mr-3" />
-                                <span className="font-medium">{tab.name}</span>
+                                <Icon className="h-5 w-5 mr-2" />
+                                <span>{tab.name}</span>
                             </button>
                         );
                     })}
                 </nav>
             </div>
-            <div className="flex-1 w-full lg:w-3/4 xl:w-4/5">
+            
+            <div className="mt-6 flex-1">
                 {renderContent()}
             </div>
         </div>

@@ -22,6 +22,7 @@ interface TransactionManagementProps {
     loggedInUser: AuthUser;
     employees: Employee[];
     addPaymentToOrder: (orderId: number, paymentData: Omit<Payment, 'id' | 'created_at' | 'order_id'>) => Promise<void>;
+    addBulkPaymentToOrders: (paymentData: Omit<Payment, 'id' | 'created_at' | 'order_id' | 'amount'>, totalPaymentAmount: number, ordersToPay: Order[]) => Promise<void>;
     banks: Bank[];
     finishings: Finishing[];
 }
@@ -70,13 +71,17 @@ const calculateTotalPaid = (order: Order): number => {
     return order.payments.reduce((sum, payment) => sum + payment.amount, 0);
 };
 
-const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, customers, bahanList, loggedInUser, employees, addPaymentToOrder, banks, finishings }) => {
+const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, customers, bahanList, loggedInUser, employees, addPaymentToOrder, addBulkPaymentToOrders, banks, finishings }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isBulkPayModalOpen, setIsBulkPayModalOpen] = useState(false);
     const [isActionMenuOpen, setIsActionMenuOpen] = useState<number | null>(null);
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
     const [newPaymentAmount, setNewPaymentAmount] = useState(0);
     const [newPaymentDate, setNewPaymentDate] = useState(new Date().toISOString().split('T')[0]);
     const [newPaymentBankId, setNewPaymentBankId] = useState<string>('cash');
+    const [newBulkPaymentAmount, setNewBulkPaymentAmount] = useState(0);
+    const [newBulkPaymentDate, setNewBulkPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+    const [newBulkPaymentBankId, setNewBulkPaymentBankId] = useState<string>('cash');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const notaRef = useRef<HTMLDivElement>(null);
     const strukRef = useRef<HTMLDivElement>(null);
@@ -143,6 +148,15 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
             })
             .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     }, [orders, filters]);
+    
+    const unpaidTransactions = useMemo(() => transactions.filter(t => t.status_pembayaran !== 'Lunas'), [transactions]);
+    const totalUnpaidAmount = useMemo(() => {
+        return unpaidTransactions.reduce((sum, order) => {
+            const total = calculateTotal(order);
+            const paid = calculateTotalPaid(order);
+            return sum + (total - paid);
+        }, 0);
+    }, [unpaidTransactions, customers, bahanList]);
 
     const totalPages = Math.ceil(transactions.length / ITEMS_PER_PAGE);
     const currentTransactions = transactions.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
@@ -195,6 +209,11 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
         setNewPaymentAmount(0);
     };
 
+    const handleCloseBulkModal = () => {
+        setIsBulkPayModalOpen(false);
+        setNewBulkPaymentAmount(0);
+    };
+
     const handlePaymentSubmit = async () => {
         if (!selectedOrder || newPaymentAmount <= 0) {
             addToast('Jumlah pembayaran harus lebih besar dari 0.', 'error');
@@ -214,6 +233,32 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
             handleCloseModal();
         } catch(error) {
             console.error("Failed to add payment:", error);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+    
+    const handleBulkPaymentSubmit = async () => {
+        if (newBulkPaymentAmount <= 0) {
+            addToast('Jumlah pembayaran harus lebih besar dari 0.', 'error');
+            return;
+        }
+        if (unpaidTransactions.length === 0) {
+            addToast('Tidak ada transaksi yang belum lunas pada filter ini.', 'info');
+            return;
+        }
+        setIsSubmitting(true);
+        const paymentData = {
+            payment_date: newBulkPaymentDate,
+            kasir_id: loggedInUser.id,
+            bank_id: newBulkPaymentBankId === 'cash' ? null : Number(newBulkPaymentBankId)
+        };
+
+        try {
+            await addBulkPaymentToOrders(paymentData, newBulkPaymentAmount, unpaidTransactions);
+            handleCloseBulkModal();
+        } catch(error) {
+            console.error("Failed to add bulk payment:", error);
         } finally {
             setIsSubmitting(false);
         }
@@ -249,45 +294,65 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
     };
     
     const handlePrintStruk = () => {
-       const printContents = strukRef.current?.innerHTML;
-       if(printContents) {
-         const printWindow = window.open('', '', 'height=600,width=400');
-         if (!printWindow) return;
-         printWindow.document.write('<html><head><title>Cetak Struk</title>');
-         printWindow.document.write(`<style>
-            @page { size: 80mm auto; margin: 0mm; } 
-            body { font-family: sans-serif; font-size: 8pt; width: 78mm; color: #000; } 
-            .struk-container { width: 100%; } 
-            h1, h2, h3, p, div, span, td, th { font-family: inherit !important; } 
-            hr { border: none; border-top: 1px dashed black; margin: 8px 0; } 
-            .flex { display: flex; } .font-bold { font-weight: bold; } 
-            .items-start { align-items: flex-start; } 
-            .justify-between { justify-content: space-between; } 
-            .text-center { text-align: center; } .text-right { text-align: right; } 
-            .break-words { word-wrap: break-word; } .my-1 { margin-top: 4px; margin-bottom: 4px; } 
-            .my-2 { margin-top: 8px; margin-bottom: 8px; } 
-            .mb-1 { margin-bottom: 4px; } .pr-1 { padding-right: 4px; } 
-            .py-0\\.5 { padding-top: 2px; padding-bottom: 2px; } 
-            .w-\\[10\\%\\] { width: 10%; } 
-            .w-\\[20\\%\\] { width: 20%; } 
-            .w-\\[30\\%\\] { width: 30%; } 
-            .w-\\[50\\%\\] { width: 50%; } 
-            .w-\\[60\\%\\] { width: 60%; } 
-            .w-\\[90\\%\\] { width: 90%; } 
-            .space-y-1 > * + * { margin-top: 4px; } 
-            .mt-2 { margin-top: 8px; } 
-            .leading-tight { line-height: 1.25; } 
-            .text-\\[9px\\] { font-size: 9px; }</style>`);
-         printWindow.document.write('</head><body class="bg-white">');
-         printWindow.document.write(`<div class="struk-container">${printContents}</div>`);
-         printWindow.document.write('</body></html>');
-         printWindow.document.close();
-         printWindow.focus();
-         setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
-       } else {
-            addToast('Gagal memuat data struk.', 'error');
-       }
-    };
+  const printContents = strukRef.current?.innerHTML;
+  if(printContents) {
+    const printWindow = window.open('', '', 'height=600,width=400');
+    if (!printWindow) return;
+
+    printWindow.document.write('<html><head><title>Cetak Struk</title>');
+    printWindow.document.write(`<style>
+      @page { size: 80mm auto; margin: 0; }
+      body {
+        font-family: 'Roboto Mono', monospace;
+        font-size: 12pt;
+        margin: 0;
+        padding: 0;
+        -webkit-print-color-adjust: exact;
+        width: 78mm;
+        color: #000;
+      }
+      .struk-container { width: 100%; }
+      h1, h2, h3, p, div, span, td, th { font-family: inherit !important; }
+      hr {
+        border: none;
+        border-top: 1px dashed black;
+        margin: 8px 0;
+      }
+      .flex { display: flex; }
+      .font-bold { font-weight: bold; }
+      .items-start { align-items: flex-start; }
+      .justify-between { justify-content: space-between; }
+      .text-center { text-align: center; }
+      .text-right { text-align: right; }
+      .break-words { word-wrap: break-word; }
+      .my-1 { margin-top: 4px; margin-bottom: 4px; }
+      .my-2 { margin-top: 8px; margin-bottom: 8px; }
+      .mb-1 { margin-bottom: 4px; }
+      .pr-1 { padding-right: 4px; }
+      .py-0\\.5 { padding-top: 2px; padding-bottom: 2px; }
+      .w-\\[10\\%\\] { width: 10%; }
+      .w-\\[20\\%\\] { width: 20%; }
+      .w-\\[30\\%\\] { width: 30%; }
+      .w-\\[50\\%\\] { width: 50%; }
+      .w-\\[60\\%\\] { width: 60%; }
+      .w-\\[90\\%\\] { width: 90%; }
+      .space-y-1 > * + * { margin-top: 4px; }
+      .mt-2 { margin-top: 8px; }
+      .leading-tight { line-height: 1.25; }
+      .text-10pt { font-size: 10pt; }
+    </style>`);
+    
+    printWindow.document.write('</head><body class="bg-white">');
+    printWindow.document.write(`<div class="struk-container">${printContents}</div>`);
+    printWindow.document.write('</body></html>');
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
+  } else {
+    addToast('Gagal memuat data struk.', 'error');
+  }
+};
+
     
     const handleSaveImage = () => {
         if(notaRef.current && selectedOrder){
@@ -366,16 +431,26 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
                         </>
                      )}
                 </div>
-                <div className="flex justify-between items-center mb-6 flex-shrink-0">
+                <div className="flex flex-wrap gap-4 justify-between items-center mb-6 flex-shrink-0">
                     <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Manajemen Transaksi</h2>
-                     <button
-                        onClick={() => window.print()}
-                        className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300 flex items-center gap-2"
-                        title="Cetak Laporan Transaksi"
-                    >
-                        <PrintIcon className="w-5 h-5" />
-                        <span className="hidden sm:inline">Cetak Laporan</span>
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => setIsBulkPayModalOpen(true)}
+                            className="bg-pink-600 hover:bg-pink-700 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300 flex items-center gap-2"
+                            title="Bayar beberapa tagihan sekaligus"
+                        >
+                            <ReceiptIcon className="w-5 h-5" />
+                            <span className="hidden sm:inline">Bayar Langsung</span>
+                        </button>
+                        <button
+                            onClick={() => window.print()}
+                            className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300 flex items-center gap-2"
+                            title="Cetak Laporan Transaksi"
+                        >
+                            <PrintIcon className="w-5 h-5" />
+                            <span className="hidden sm:inline">Cetak Laporan</span>
+                        </button>
+                    </div>
                 </div>
 
                 {/* Daily Stats */}
@@ -566,6 +641,73 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
                                     onClick={handleCloseModal}
                                     className="w-full sm:w-auto flex-1 px-6 py-3 rounded-lg text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 transition-colors"
                                 >
+                                    Batal
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                
+                {isBulkPayModalOpen && (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50" onClick={handleCloseBulkModal}>
+                        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-3xl p-6 sm:p-8 m-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                             <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2 flex-shrink-0">Pembayaran Langsung (Bulk)</h3>
+                             <p className="text-slate-500 dark:text-slate-400 mb-6 flex-shrink-0">Membayar beberapa tagihan dari hasil filter saat ini.</p>
+                             
+                             <div className="flex-1 overflow-y-auto -mr-4 pr-4 space-y-6">
+                                <div className="bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-4">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-slate-600 dark:text-slate-300 font-medium">Total Piutang (dari filter):</span>
+                                        <span className="text-red-500 font-bold text-xl">{formatCurrency(totalUnpaidAmount)}</span>
+                                    </div>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{unpaidTransactions.length} nota belum lunas.</p>
+                                </div>
+                                
+                                {unpaidTransactions.length > 0 && (
+                                    <div>
+                                        <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-2">Daftar Tagihan (diurutkan dari terlama)</h4>
+                                        <div className="max-h-48 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg p-2 space-y-2">
+                                            {unpaidTransactions.sort((a,b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map(order => {
+                                                const total = calculateTotal(order);
+                                                const paid = calculateTotalPaid(order);
+                                                return (
+                                                    <div key={order.id} className="flex justify-between items-center text-sm p-2 bg-slate-50 dark:bg-slate-700/50 rounded-md">
+                                                        <div>
+                                                            <p className="font-medium text-slate-800 dark:text-slate-200">{order.no_nota}</p>
+                                                            <p className="text-xs text-slate-500 dark:text-slate-400">{customers.find(c => c.id === order.pelanggan_id)?.name}</p>
+                                                        </div>
+                                                        <p className="font-semibold text-red-500 dark:text-red-400">{formatCurrency(total - paid)}</p>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                                    <div>
+                                        <label htmlFor="bulkPaymentAmount" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Jumlah Pembayaran</label>
+                                        <input id="bulkPaymentAmount" type="number" value={newBulkPaymentAmount} onChange={(e) => setNewBulkPaymentAmount(Number(e.target.value))} className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100" placeholder="Masukkan total pembayaran" />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="bulkPaymentDate" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Tanggal Pembayaran</label>
+                                        <input id="bulkPaymentDate" type="date" value={newBulkPaymentDate} onChange={(e) => setNewBulkPaymentDate(e.target.value)} className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100" />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="bulkPaymentSource" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Sumber Dana</label>
+                                        <select id="bulkPaymentSource" value={newBulkPaymentBankId} onChange={(e) => setNewBulkPaymentBankId(e.target.value)} className="w-full pl-3 pr-10 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100 appearance-none" style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em' }}>
+                                            <option value="cash">Cash</option>
+                                            {banks.map(bank => (<option key={bank.id} value={bank.id}>{bank.name} - {bank.account_holder}</option>))}
+                                        </select>
+                                    </div>
+                                </div>
+                             </div>
+                             
+                             <div className="pt-6 border-t border-slate-200 dark:border-slate-700 flex-shrink-0 flex flex-col sm:flex-row gap-3">
+                                <button onClick={handleBulkPaymentSubmit} disabled={isSubmitting} className="w-full sm:w-auto flex-1 px-6 py-3 rounded-lg text-white bg-pink-600 hover:bg-pink-700 transition-colors disabled:bg-pink-300">
+                                    {isSubmitting ? 'Menyimpan...' : 'Simpan Pembayaran'}
+                                </button>
+                                <button onClick={handleCloseBulkModal} className="w-full sm:w-auto flex-1 px-6 py-3 rounded-lg text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 transition-colors">
                                     Batal
                                 </button>
                             </div>
