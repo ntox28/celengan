@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import CustomerManagement from './customers/CustomerManagement';
 import { EmployeePosition, User as AuthUser } from '../lib/supabaseClient';
 import EmployeeManagement from './employees/EmployeeManagement';
@@ -13,7 +13,10 @@ import MenuIcon from './icons/MenuIcon';
 import { useAppData } from '../hooks/useAppData';
 import SupplierManagement from './suppliers/SupplierManagement';
 import StockManagement from './stock/StockManagement';
-import GlobalSearch from './GlobalSearch';
+import YouTubeIcon from './icons/YouTubeIcon';
+import YouTubePlaylistModal from './settings/YouTubePlaylistModal';
+import PlusIcon from './icons/PlusIcon';
+import { useToast } from '../../hooks/useToast';
 
 type MainContentProps = {
   user: AuthUser;
@@ -52,21 +55,43 @@ const MainContent: React.FC<MainContentProps> = (props) => {
     finishings, addFinishing, updateFinishing, deleteFinishing,
     addBulkPaymentToOrders,
     updateBahanStock,
+    displaySettings,
+    updateYouTubePlaylist,
     onToggleSidebar
   } = props;
   
+  const { addToast } = useToast();
+  const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
+  const [newYoutubeUrl, setNewYoutubeUrl] = useState('');
+  const [isAddingUrl, setIsAddingUrl] = useState(false);
+  
   const employee = employees.find(e => e.user_id === user.id);
-  // This logic mirrors Dashboard.tsx to ensure consistency.
-  // The 'employees' table is the source of truth for the user's position.
   const userRole = employee?.position || (user.user_metadata as { userrole?: EmployeePosition })?.userrole || 'Kasir';
   const displayName = employee ? employee.name : (user.email || 'Pengguna');
   const avatarSeed = displayName;
 
-  const handleSearchResultSelect = (view: string, id: string | number) => {
-      setActiveView(view);
-      // This is a simplified implementation. A more advanced version might
-      // use context or another state management solution to pass the selected
-      // ID to the target view component for highlighting or filtering.
+  const handleAddYoutubeUrl = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newYoutubeUrl.trim()) {
+        addToast('URL YouTube tidak boleh kosong.', 'error');
+        return;
+    }
+    setIsAddingUrl(true);
+    try {
+        const currentPlaylist = displaySettings?.youtube_url || [];
+        if (currentPlaylist.includes(newYoutubeUrl.trim())) {
+            addToast('URL ini sudah ada di dalam playlist.', 'info');
+            setIsAddingUrl(false);
+            return;
+        }
+        const newPlaylist = [...currentPlaylist, newYoutubeUrl.trim()];
+        await updateYouTubePlaylist(newPlaylist);
+        setNewYoutubeUrl('');
+    } catch (error) {
+        console.error(error);
+    } finally {
+        setIsAddingUrl(false);
+    }
   };
 
   const renderContent = () => {
@@ -192,6 +217,14 @@ const MainContent: React.FC<MainContentProps> = (props) => {
 
   return (
     <div className="flex-1 p-4 sm:p-6 lg:p-8 flex flex-col bg-gray-100 dark:bg-slate-900 h-screen">
+      {isPlaylistModalOpen && (
+          <YouTubePlaylistModal
+              isOpen={isPlaylistModalOpen}
+              onClose={() => setIsPlaylistModalOpen(false)}
+              settings={displaySettings}
+              onSave={updateYouTubePlaylist}
+          />
+      )}
       {/* Header */}
       <header className="flex flex-col sm:flex-row sm:justify-between sm:items-center pb-6 border-b border-slate-200 dark:border-slate-700 flex-shrink-0 gap-4 relative">
         <div className="flex items-center gap-4">
@@ -201,11 +234,37 @@ const MainContent: React.FC<MainContentProps> = (props) => {
              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100">{activeView}</h1>
         </div>
         <div className="flex items-center justify-end space-x-2 sm:space-x-4 w-full sm:w-auto">
-          <GlobalSearch
-              orders={orders}
-              customers={customers}
-              onResultSelect={handleSearchResultSelect}
-          />
+          <form onSubmit={handleAddYoutubeUrl} className="flex items-center gap-2">
+            <input
+              type="url"
+              value={newYoutubeUrl}
+              onChange={(e) => setNewYoutubeUrl(e.target.value)}
+              placeholder="Tambah link YouTube..."
+              className="w-full sm:w-64 pl-4 pr-4 py-2 bg-slate-100 dark:bg-slate-700/50 border border-transparent focus:border-pink-500 rounded-md text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-pink-500 transition duration-300 text-sm"
+            />
+            <button
+              type="submit"
+              disabled={isAddingUrl}
+              className="p-2 flex-shrink-0 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title="Tambah ke Playlist"
+            >
+              {isAddingUrl ? (
+                <svg className="animate-spin h-6 w-6 text-slate-500 dark:text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              ) : (
+                <PlusIcon className="h-6 w-6" />
+              )}
+            </button>
+          </form>
+          <button
+              onClick={() => setIsPlaylistModalOpen(true)}
+              className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              title="Atur Playlist YouTube"
+          >
+              <YouTubeIcon className="h-6 w-6" />
+          </button>
           <div className="text-right flex-shrink-0">
             <p className="text-slate-800 dark:text-slate-200 font-semibold capitalize truncate">{displayName}</p>
             <p className="text-sm text-slate-500 dark:text-slate-400 capitalize">{userRole}</p>

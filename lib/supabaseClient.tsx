@@ -188,6 +188,13 @@ export interface Printer {
     is_default: boolean;
 }
 
+export interface DisplaySettings {
+    id: number;
+    created_at: string;
+    youtube_url: string[] | null;
+}
+
+
 export interface Database {
   public: {
     Tables: {
@@ -260,6 +267,11 @@ export interface Database {
         Row: Printer;
         Insert: Omit<Printer, 'id' | 'created_at'>;
         Update: Partial<Omit<Printer, 'id' | 'created_at'>>;
+      };
+      display_settings: {
+        Row: DisplaySettings;
+        Insert: Omit<DisplaySettings, 'id' | 'created_at'>;
+        Update: Partial<Omit<DisplaySettings, 'id' | 'created_at'>>;
       };
       settings: {
         Row: { key: string; value: string; };
