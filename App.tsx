@@ -5,13 +5,10 @@ import { Session, supabase } from './lib/supabaseClient';
 import { ToastProvider, useToast } from './hooks/useToast';
 import { ThemeProvider } from './hooks/useTheme';
 import { useAppData } from './hooks/useAppData';
-import PublicView from './components/public/PublicView';
-import XCircleIcon from './components/icons/XCircleIcon';
 
 const AppContent: React.FC = () => {
     const [session, setSession] = useState<Session | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
     const { addToast } = useToast();
     
     useEffect(() => {
@@ -38,7 +35,6 @@ const AppContent: React.FC = () => {
             throw new Error(error.message);
         }
         addToast(`Selamat datang kembali!`, 'success');
-        setIsLoginModalOpen(false); // Close modal on success
     };
 
     const handleLogout = async () => {
@@ -85,24 +81,9 @@ const AppContent: React.FC = () => {
                     </div>
                  )
             ) : (
-                <>
-                    <PublicView onLoginRequest={() => setIsLoginModalOpen(true)} />
-                    {isLoginModalOpen && (
-                         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4"
-                             onClick={() => setIsLoginModalOpen(false)}>
-                            <div className="relative" onClick={(e) => e.stopPropagation()}>
-                                <LoginComponent onLogin={handleLogin} />
-                                <button
-                                    onClick={() => setIsLoginModalOpen(false)}
-                                    className="absolute -top-3 -right-3 text-white bg-slate-800 rounded-full p-1 shadow-lg hover:bg-slate-700 transition-colors"
-                                    aria-label="Tutup"
-                                >
-                                    <XCircleIcon className="w-8 h-8"/>
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                </>
+                <div className="flex items-center justify-center min-h-screen p-4">
+                    <LoginComponent onLogin={handleLogin} />
+                </div>
             )}
         </div>
     );

@@ -33,7 +33,7 @@ const LoginComponent: React.FC<LoginComponentProps> = ({ onLogin }) => {
     };
 
     return (
-        <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-md p-8 space-y-6">
+        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-md p-8 space-y-6">
             <div className="text-center">
                 <img src="https://xkvgflhjcnkythytbkuj.supabase.co/storage/v1/object/public/publik/logo.png" alt="Celengan Logo" className="w-20 h-20 mx-auto mb-4" />
                 <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">CELENGAN</h1>
