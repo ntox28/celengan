@@ -4,7 +4,13 @@ import type { User as AuthUser, Session as AuthSession } from '@supabase/auth-js
 const supabaseUrl = 'https://xkvgflhjcnkythytbkuj.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhrdmdmbGhqY25reXRoeXRia3VqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ0NDM4OTYsImV4cCI6MjA3MDAxOTg5Nn0.X9CM27REAKqjD82jAgZEKRGTo0LTkUpI8Df5feUOxww';
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+  },
+});
 
 // Re-export Supabase types for convenience
 export type User = AuthUser;

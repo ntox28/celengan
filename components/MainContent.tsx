@@ -16,7 +16,7 @@ import StockManagement from './stock/StockManagement';
 import YouTubeIcon from './icons/YouTubeIcon';
 import YouTubePlaylistModal from './settings/YouTubePlaylistModal';
 import PlusIcon from './icons/PlusIcon';
-import { useToast } from '../../hooks/useToast';
+import { useToast } from '../hooks/useToast';
 
 type MainContentProps = {
   user: AuthUser;
