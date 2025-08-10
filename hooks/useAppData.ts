@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { supabase, Customer, Employee, Bahan, Expense, Order, OrderItem, Payment, User, Bank, Asset, Debt, NotaSetting, Supplier, StockMovement, Finishing, OrderStatus, ProductionStatus, OrderRow, Database, CustomerLevel, PaymentStatus, DisplaySettings } from '../lib/supabaseClient';
+import { supabase, Customer, Employee, Bahan, Expense, Order, OrderItem, Payment, User, Bank, Asset, Debt, NotaSetting, Supplier, StockMovement, Finishing, OrderStatus, ProductionStatus, OrderRow, Database, CustomerLevel, PaymentStatus, DisplaySettings, YouTubePlaylistItem } from '../lib/supabaseClient';
 import { useToast } from './useToast';
 
 // Type definitions for complex parameters
@@ -142,7 +142,7 @@ export const useAppData = (user: User | undefined) => {
         setData: React.Dispatch<React.SetStateAction<Tables[TableName]['Row'][]>>,
         successMessage: string
     ): Promise<Tables[TableName]['Row']> => {
-        const { data: newRecord, error } = await supabase.from(table).insert(data as any).select().single();
+        const { data: newRecord, error } = await supabase.from(table).insert([data]).select().single();
         if (error) {
             addToast(`Gagal: ${error.message}`, 'error');
             throw error;
@@ -164,7 +164,7 @@ export const useAppData = (user: User | undefined) => {
         setData: React.Dispatch<React.SetStateAction<Tables[TableName]['Row'][]>>,
         successMessage: string
     ) => {
-        const { data: updatedRecord, error } = await supabase.from(table).update(data as any).eq('id', id as any).select().single();
+        const { data: updatedRecord, error } = await supabase.from(table).update(data).eq('id', id).select().single();
         if (error) { addToast(`Gagal: ${error.message}`, 'error'); throw error; }
         if (updatedRecord) {
             setData(prev => prev.map(item => ((item as any).id === id ? { ...item, ...updatedRecord } : item)));
@@ -178,7 +178,7 @@ export const useAppData = (user: User | undefined) => {
         setData: React.Dispatch<React.SetStateAction<Tables[TableName]['Row'][]>>,
         successMessage: string
     ) => {
-        const { error } = await supabase.from(table).delete().eq('id', id as any);
+        const { error } = await supabase.from(table).delete().eq('id', id);
         if (error) { addToast(`Gagal: ${error.message}`, 'error'); throw error; }
         setData(prev => prev.filter(item => (item as {id: number}).id !== id));
         addToast(successMessage, 'success');
@@ -225,10 +225,10 @@ export const useAppData = (user: User | undefined) => {
             }
     
             // Create the corresponding profile in the 'employees' table.
-            const employeeProfileData = { ...data, user_id: signUpData.user.id };
+            const employeeProfileData: Tables['employees']['Insert'] = { ...data, user_id: signUpData.user.id };
             const { data: newEmployee, error: profileError } = await supabase
                 .from('employees')
-                .insert(employeeProfileData as any)
+                .insert([employeeProfileData])
                 .select()
                 .single();
     
@@ -291,7 +291,7 @@ export const useAppData = (user: User | undefined) => {
     // --- Complex Logic: Stock Movements, Expenses, Orders, Payments ---
 
     const addStockMovement = async (data: Omit<StockMovement, 'id' | 'created_at'>, fromExpense: boolean = false) => {
-        const { error: moveError } = await supabase.from('stock_movements').insert(data as any);
+        const { error: moveError } = await supabase.from('stock_movements').insert([data]);
         if (moveError) { addToast(`Gagal mencatat pergerakan stok: ${moveError.message}`, 'error'); throw moveError; }
         
         // Update stock_qty on bahan table
@@ -299,7 +299,7 @@ export const useAppData = (user: User | undefined) => {
         const currentStock = bahan?.stock_qty || 0;
         const newStock = data.type === 'in' ? currentStock + data.quantity : currentStock - data.quantity;
         
-        const { error: updateError } = await supabase.from('bahan').update({ stock_qty: newStock } as any).eq('id', data.bahan_id as any);
+        const { error: updateError } = await supabase.from('bahan').update({ stock_qty: newStock }).eq('id', data.bahan_id);
         if (updateError) { addToast(`Gagal update stok: ${updateError.message}`, 'error'); throw updateError; }
         
         // Manually update local state to reflect changes immediately
@@ -333,14 +333,14 @@ export const useAppData = (user: User | undefined) => {
             supplier_id: null,
             notes: notes,
         };
-        const { error: moveError } = await supabase.from('stock_movements').insert(movementData as any);
+        const { error: moveError } = await supabase.from('stock_movements').insert([movementData]);
         if (moveError) {
             addToast(`Gagal mencatat penyesuaian stok: ${moveError.message}`, 'error');
             throw moveError;
         }
     
         // 3. Update stock_qty on bahan table
-        const { data: updatedBahan, error: updateError } = await supabase.from('bahan').update({ stock_qty: newStockQty } as any).eq('id', bahanId as any).select().single();
+        const { data: updatedBahan, error: updateError } = await supabase.from('bahan').update({ stock_qty: newStockQty }).eq('id', bahanId).select().single();
         if (updateError) {
             addToast(`Gagal update stok: ${updateError.message}`, 'error');
             // TODO: Ideally, roll back the stock_movement insert here.
@@ -375,8 +375,8 @@ export const useAppData = (user: User | undefined) => {
 
     const updateNotaSetting = async (settings: NotaSetting) => {
         const updates = [
-            supabase.from('settings').update({ value: settings.prefix } as any).eq('key', 'nota_prefix'),
-            supabase.from('settings').update({ value: settings.start_number_str } as any).eq('key', 'nota_last_number')
+            supabase.from('settings').update({ value: settings.prefix }).eq('key', 'nota_prefix'),
+            supabase.from('settings').update({ value: settings.start_number_str }).eq('key', 'nota_last_number')
         ];
 
         const [prefixResult, numberResult] = await Promise.all(updates);
@@ -425,17 +425,17 @@ export const useAppData = (user: User | undefined) => {
         
         // 2. Insert order
         const { order_items, ...orderPayload } = orderData;
-        const newOrderPayload = { ...orderPayload, no_nota: newNotaNumber };
-        const { data: newOrder, error: orderError } = await supabase.from('orders').insert(newOrderPayload as any).select().single();
+        const newOrderPayload: Tables['orders']['Insert'] = { ...orderPayload, no_nota: newNotaNumber };
+        const { data: newOrder, error: orderError } = await supabase.from('orders').insert([newOrderPayload]).select().single();
         if (orderError) { addToast(`Gagal membuat order: ${orderError.message}`, 'error'); throw orderError; }
         
         // 3. Insert order_items
-        const itemsPayload = order_items.map((item) => ({...item, order_id: newOrder.id}));
-        const { error: itemsError } = await supabase.from('order_items').insert(itemsPayload as any);
+        const itemsPayload: Tables['order_items']['Insert'][] = order_items.map((item) => ({...item, order_id: newOrder.id}));
+        const { error: itemsError } = await supabase.from('order_items').insert(itemsPayload);
         if (itemsError) { addToast(`Gagal menyimpan item order: ${itemsError.message}`, 'error'); throw itemsError; }
         
         // 4. Update last number in settings WITH PADDING
-        await supabase.from('settings').update({ value: newPaddedNumberStr } as any).eq('key', 'nota_last_number');
+        await supabase.from('settings').update({ value: newPaddedNumberStr }).eq('key', 'nota_last_number');
         
         // 5. Refetch order to display it with items
         const { data: fullOrder, error: fetchError } = await supabase.from('orders').select('*, order_items(*), payments(*)').eq('id', newOrder.id).single();
@@ -450,17 +450,17 @@ export const useAppData = (user: User | undefined) => {
         const { order_items, ...orderPayload } = orderData;
         
         // 1. Update order details
-        const { error: orderError } = await supabase.from('orders').update(orderPayload as any).eq('id', id as any);
+        const { error: orderError } = await supabase.from('orders').update(orderPayload).eq('id', id);
         if (orderError) { addToast(`Gagal update order: ${orderError.message}`, 'error'); return; }
         
         // 2. Delete old items if new ones are provided
         if(order_items){
-            const { error: deleteError } = await supabase.from('order_items').delete().eq('order_id', id as any);
+            const { error: deleteError } = await supabase.from('order_items').delete().eq('order_id', id);
             if (deleteError) { addToast(`Gagal menghapus item lama: ${deleteError.message}`, 'error'); return; }
             
             // 3. Insert new items
-            const itemsPayload = order_items.map((item) => ({ ...item, order_id: id, id: undefined, created_at: undefined, local_id: undefined }));
-            const { error: insertError } = await supabase.from('order_items').insert(itemsPayload as any);
+            const itemsPayload: Tables['order_items']['Insert'][] = order_items.map((item) => ({ ...item, order_id: id, id: undefined, created_at: undefined, local_id: undefined }));
+            const { error: insertError } = await supabase.from('order_items').insert(itemsPayload);
             if (insertError) { addToast(`Gagal menyimpan item baru: ${insertError.message}`, 'error'); return; }
         }
 
@@ -476,7 +476,7 @@ export const useAppData = (user: User | undefined) => {
     const addPaymentToOrder = async (orderId: number, paymentData: Omit<Payment, 'id' | 'created_at' | 'order_id'>) => {
         const { data: newPayment, error } = await supabase
             .from('payments')
-            .insert({ ...paymentData, order_id: orderId } as any)
+            .insert([{ ...paymentData, order_id: orderId }])
             .select()
             .single();
 
@@ -498,8 +498,8 @@ export const useAppData = (user: User | undefined) => {
                 if (totalPaidInCents >= totalBillInCents) {
                     const { error: updateError } = await supabase
                         .from('orders')
-                        .update({ status_pembayaran: 'Lunas' } as any)
-                        .eq('id', orderId as any);
+                        .update({ status_pembayaran: 'Lunas' })
+                        .eq('id', orderId);
                     if (updateError) {
                         addToast(`Pembayaran terekam, tapi gagal update status order: ${updateError.message}`, 'error');
                     }
@@ -536,7 +536,7 @@ export const useAppData = (user: User | undefined) => {
         let remainingPayment = totalPaymentAmount;
         const sortedOrders = [...ordersToPay].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
     
-        const paymentInserts: Omit<Payment, 'id' | 'created_at'>[] = [];
+        const paymentInserts: Tables['payments']['Insert'][] = [];
         const orderUpdatePayloads: { id: number; status_pembayaran: PaymentStatus }[] = [];
     
         for (const order of sortedOrders) {
@@ -565,13 +565,13 @@ export const useAppData = (user: User | undefined) => {
         }
     
         try {
-            const { error: insertError } = await supabase.from('payments').insert(paymentInserts as any);
+            const { error: insertError } = await supabase.from('payments').insert(paymentInserts);
             if (insertError) throw insertError;
     
             if (orderUpdatePayloads.length > 0) {
                 // Supabase JS v2 doesn't support bulk updates easily. We loop.
                 const updatePromises = orderUpdatePayloads.map(update =>
-                    supabase.from('orders').update({ status_pembayaran: update.status_pembayaran } as any).eq('id', update.id as any)
+                    supabase.from('orders').update({ status_pembayaran: update.status_pembayaran }).eq('id', update.id)
                 );
                 const results = await Promise.all(updatePromises);
                 const updateError = results.find(res => res.error);
@@ -595,7 +595,8 @@ export const useAppData = (user: User | undefined) => {
     };
 
     const updateOrderStatus = async (orderId: number, status: OrderStatus, pelaksana_id: string | null = null) => {
-        const { data: updatedOrder, error } = await supabase.from('orders').update({ status_pesanan: status, pelaksana_id } as any).eq('id', orderId as any).select().single();
+        const payload: Tables['orders']['Update'] = { status_pesanan: status, pelaksana_id };
+        const { data: updatedOrder, error } = await supabase.from('orders').update(payload).eq('id', orderId).select().single();
         if (error) { addToast(`Gagal update status order: ${error.message}`, 'error'); return; }
 
         const fullOrder = orders.find(o => o.id === orderId);
@@ -625,7 +626,8 @@ export const useAppData = (user: User | undefined) => {
     };
 
     const updateOrderItemStatus = async (orderId: number, itemId: number, status: ProductionStatus) => {
-        const { error } = await supabase.from('order_items').update({ status_produksi: status } as any).eq('id', itemId as any);
+        const payload: Tables['order_items']['Update'] = { status_produksi: status };
+        const { error } = await supabase.from('order_items').update(payload).eq('id', itemId);
         if (error) { addToast('Gagal update status item.', 'error'); return; }
         
         setOrders(prev => prev.map(order => {
@@ -637,18 +639,20 @@ export const useAppData = (user: User | undefined) => {
         }));
     };
     
-    const updateYouTubePlaylist = async (urls: string[]) => {
+    const updateYouTubePlaylist = async (playlist: YouTubePlaylistItem[]) => {
       const { data: existing, error: checkError } = await supabase.from('display_settings').select('id').eq('id', 1).maybeSingle();
 
       let result;
+      const payload: Tables['display_settings']['Update'] = { youtube_url: playlist };
+
       if (checkError) {
           addToast(`Gagal memeriksa pengaturan: ${checkError.message}`, 'error');
           throw checkError;
       }
       if (existing) {
-          result = await supabase.from('display_settings').update({ youtube_url: urls } as any).eq('id', 1).select().single();
+          result = await supabase.from('display_settings').update(payload).eq('id', 1).select().single();
       } else {
-          result = await supabase.from('display_settings').insert({ id: 1, youtube_url: urls } as any).select().single();
+          result = await supabase.from('display_settings').insert([payload]).select().single();
       }
       
       const { data, error } = result;
@@ -659,7 +663,8 @@ export const useAppData = (user: User | undefined) => {
       }
 
       if (data) {
-          setDisplaySettings(data as DisplaySettings);
+          const newSettings: DisplaySettings = { ...data, youtube_url: playlist };
+          setDisplaySettings(newSettings);
           addToast('Playlist YouTube berhasil diperbarui.', 'success');
       }
     };

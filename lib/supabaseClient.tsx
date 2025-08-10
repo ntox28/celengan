@@ -38,6 +38,11 @@ export type ExpenseCategory = 'Bahan' | 'Konsumsi' | 'Bulanan' | 'Operasional' |
 export type PrinterType = 'Thermal 58mm' | 'Thermal 80mm' | 'Dot Matrix';
 export type PrintTarget = 'SPK' | 'Nota' | 'Struk';
 
+export interface YouTubePlaylistItem {
+    url: string;
+    title: string;
+}
+
 export interface Customer {
     id: number;
     created_at: string;
@@ -197,7 +202,7 @@ export interface Printer {
 export interface DisplaySettings {
     id: number;
     created_at: string;
-    youtube_url: string[] | null;
+    youtube_url: YouTubePlaylistItem[] | null;
 }
 
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import CustomerManagement from './customers/CustomerManagement';
-import { EmployeePosition, User as AuthUser } from '../lib/supabaseClient';
+import { EmployeePosition, User as AuthUser, YouTubePlaylistItem } from '../lib/supabaseClient';
 import EmployeeManagement from './employees/EmployeeManagement';
 import SettingsManagement from './settings/SettingsManagement';
 import ExpenseManagement from './expenses/ExpenseManagement';
@@ -76,18 +76,39 @@ const MainContent: React.FC<MainContentProps> = (props) => {
         addToast('URL YouTube tidak boleh kosong.', 'error');
         return;
     }
+
+    try {
+        new URL(newYoutubeUrl);
+    } catch (_) {
+        addToast('URL YouTube tidak valid.', 'error');
+        return;
+    }
+
     setIsAddingUrl(true);
     try {
         const currentPlaylist = displaySettings?.youtube_url || [];
-        if (currentPlaylist.includes(newYoutubeUrl.trim())) {
+        
+        if (currentPlaylist.some(item => item.url === newYoutubeUrl.trim())) {
             addToast('URL ini sudah ada di dalam playlist.', 'info');
-            setIsAddingUrl(false);
+            setNewYoutubeUrl('');
             return;
         }
-        const newPlaylist = [...currentPlaylist, newYoutubeUrl.trim()];
+
+        const response = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(newYoutubeUrl.trim())}`);
+        if (!response.ok) {
+            throw new Error('Gagal mengambil judul video. Pastikan URL valid.');
+        }
+        const data = await response.json();
+        const title = data.title || 'Judul tidak ditemukan';
+
+        const newItem: YouTubePlaylistItem = { url: newYoutubeUrl.trim(), title };
+        
+        const newPlaylist = [...currentPlaylist, newItem];
         await updateYouTubePlaylist(newPlaylist);
         setNewYoutubeUrl('');
-    } catch (error) {
+        addToast(`"${title}" ditambahkan ke playlist.`, 'success');
+    } catch (error: any) {
+        addToast(error.message || 'Terjadi kesalahan.', 'error');
         console.error(error);
     } finally {
         setIsAddingUrl(false);
