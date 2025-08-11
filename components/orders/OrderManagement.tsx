@@ -14,6 +14,7 @@ import NotaManagement from '../settings/NotaManagement';
 import FinishingManagement from '../settings/FinishingManagement';
 import UserPlusIcon from '../icons/UserPlusIcon';
 import CheckCircleIcon from '../icons/CheckCircleIcon';
+import UndoIcon from '../icons/UndoIcon';
 
 type LocalOrderItem = {
     local_id: number;
@@ -381,9 +382,14 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
         const orderToProcess = orders.find(o => o.id === orderId);
         if (!orderToProcess) return;
 
-        if (window.confirm(`Proses pesanan untuk Nota ${orderToProcess.no_nota}? Anda akan ditetapkan sebagai pelaksana.`)) {
-            await updateOrderStatus(orderId, 'Proses', loggedInUser.id);
-            addToast(`Pesanan ${orderToProcess.no_nota} telah diproses.`, 'success');
+        if (window.confirm(`Proses pesanan untuk Nota ${orderToProcess.no_nota}? Stok bahan akan dikurangi.`)) {
+            await updateOrderStatus(orderId, 'Waiting', loggedInUser.id);
+        }
+    };
+
+    const handleCancelProcess = async (order: Order) => {
+        if (window.confirm(`Yakin ingin membatalkan proses pesanan Nota ${order.no_nota}? Status akan kembali ke Pending dan stok akan dikembalikan.`)) {
+            await updateOrderStatus(order.id, 'Pending', '');
         }
     };
 
@@ -657,8 +663,10 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
                                                     order.status_pesanan === 'Selesai'
                                                         ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300'
                                                         : order.status_pesanan === 'Proses'
-                                                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300'
-                                                        : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300'
+                                                        ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300'
+                                                        : order.status_pesanan === 'Waiting'
+                                                        ? 'bg-gray-100 text-gray-800 dark:bg-slate-600 dark:text-slate-200'
+                                                        : 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'
                                                 }`}>
                                                     {order.status_pesanan}
                                                 </span>
@@ -673,13 +681,13 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
                                                 </button>
                                             </td>
                                             <td data-label="Aksi" className="px-6 py-4 text-center space-x-2">
-                                                {order.status_pesanan === 'Proses' && (
+                                                {['Waiting', 'Proses'].includes(order.status_pesanan) && (
                                                      <button
-                                                        onClick={() => { if(window.confirm(`Yakin ingin menyelesaikan pesanan Nota ${order.no_nota}?`)) { updateOrderStatus(order.id, 'Selesai')}}}
-                                                        className="text-green-600 hover:text-green-500 dark:text-green-400 dark:hover:text-green-300 transition-colors p-1"
-                                                        title="Tandai Selesai"
+                                                        onClick={() => handleCancelProcess(order)}
+                                                        className="text-amber-600 hover:text-amber-500 dark:text-amber-400 dark:hover:text-amber-300 transition-colors p-1"
+                                                        title="Batal Proses"
                                                     >
-                                                        <CheckCircleIcon className="w-5 h-5" />
+                                                        <UndoIcon className="w-5 h-5" />
                                                     </button>
                                                 )}
                                                 {order.status_pesanan === 'Pending' && (

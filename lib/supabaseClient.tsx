@@ -28,7 +28,7 @@ export type CustomerLevel = 'End Customer' | 'Retail' | 'Grosir' | 'Reseller' | 
 export type EmployeePosition = 'Admin' | 'Kasir' | 'Office' | 'Produksi';
 export type ProductionStatus = 'Belum Dikerjakan' | 'Proses' | 'Selesai';
 export type PaymentStatus = 'Belum Lunas' | 'Lunas';
-export type OrderStatus = 'Pending' | 'Proses' | 'Selesai';
+export type OrderStatus = 'Pending' | 'Waiting' | 'Proses' | 'Selesai';
 export type AssetCategory = 'Aset Lancar' | 'Aset Tetap' | 'Aset Tidak Terwujud' | 'Aset Lainnya';
 export type AssetStatus = 'Baik' | 'Perbaikan' | 'Rusak' | 'Dijual';
 export type DebtCategory = 'Pinjaman Bank' | 'Kredit Aset' | 'Hutang Pemasok' | 'Lainnya';
@@ -211,83 +211,83 @@ export interface Database {
     Tables: {
       customers: {
         Row: Customer;
-        Insert: Omit<Customer, 'id' | 'created_at'>;
-        Update: Partial<Omit<Customer, 'id' | 'created_at'>>;
+        Insert: { name: string; email: string; phone: string; address: string; level: CustomerLevel; };
+        Update: { name?: string; email?: string; phone?: string; address?: string; level?: CustomerLevel; };
       };
       employees: {
         Row: Employee;
-        Insert: Omit<Employee, 'id' | 'created_at'>;
-        Update: Partial<Omit<Employee, 'id' | 'created_at'>>;
+        Insert: { name: string; position: EmployeePosition; email: string | null; phone: string | null; user_id: string | null; };
+        Update: { name?: string; position?: EmployeePosition; email?: string | null; phone?: string | null; user_id?: string | null; };
       };
       bahan: {
         Row: Bahan;
-        Insert: Omit<Bahan, 'id' | 'created_at' | 'stock_qty'>;
-        Update: Partial<Omit<Bahan, 'id' | 'created_at'>>;
+        Insert: { name: string; harga_end_customer: number; harga_retail: number; harga_grosir: number; harga_reseller: number; harga_corporate: number; stock_qty?: number };
+        Update: { name?: string; harga_end_customer?: number; harga_retail?: number; harga_grosir?: number; harga_reseller?: number; harga_corporate?: number; stock_qty?: number };
       };
       expenses: {
         Row: Expense;
-        Insert: Omit<Expense, 'id' | 'created_at'>;
-        Update: Partial<Omit<Expense, 'id' | 'created_at'>>;
+        Insert: { tanggal: string; jenis_pengeluaran: ExpenseCategory; keterangan: string | null; supplier_id: number | null; bahan_id: number | null; qty: number; harga: number; };
+        Update: { tanggal?: string; jenis_pengeluaran?: ExpenseCategory; keterangan?: string | null; supplier_id?: number | null; bahan_id?: number | null; qty?: number; harga?: number; };
       };
       orders: {
         Row: OrderRow;
-        Insert: Omit<OrderRow, 'id' | 'created_at'>;
-        Update: Partial<Omit<OrderRow, 'id' | 'created_at'>>;
+        Insert: { no_nota: string; tanggal: string; pelanggan_id: number; pelaksana_id: string | null; status_pembayaran: PaymentStatus; status_pesanan: OrderStatus; };
+        Update: { no_nota?: string; tanggal?: string; pelanggan_id?: number; pelaksana_id?: string | null; status_pembayaran?: PaymentStatus; status_pesanan?: OrderStatus; };
       };
       order_items: {
         Row: OrderItem;
-        Insert: Omit<OrderItem, 'id' | 'created_at'>;
-        Update: Partial<Omit<OrderItem, 'id' | 'created_at'>>;
+        Insert: { order_id: number; bahan_id: number; deskripsi_pesanan: string | null; panjang: number | null; lebar: number | null; qty: number; status_produksi: ProductionStatus; finishing_id: number | null; };
+        Update: { order_id?: number; bahan_id?: number; deskripsi_pesanan?: string | null; panjang?: number | null; lebar?: number | null; qty?: number; status_produksi?: ProductionStatus; finishing_id?: number | null; };
       };
       payments: {
         Row: Payment;
-        Insert: Omit<Payment, 'id' | 'created_at'>;
-        Update: Partial<Omit<Payment, 'id' | 'created_at'>>;
+        Insert: { order_id: number; amount: number; payment_date: string; kasir_id: string | null; bank_id: number | null; };
+        Update: { order_id?: number; amount?: number; payment_date?: string; kasir_id?: string | null; bank_id?: number | null; };
       };
       banks: {
         Row: Bank;
-        Insert: Omit<Bank, 'id' | 'created_at'>;
-        Update: Partial<Omit<Bank, 'id' | 'created_at'>>;
+        Insert: { name: string; account_holder: string; account_number: string; category: 'Bank' | 'Digital Wallet' | 'Qris'; };
+        Update: { name?: string; account_holder?: string; account_number?: string; category?: 'Bank' | 'Digital Wallet' | 'Qris'; };
       };
       assets: {
         Row: Asset;
-        Insert: Omit<Asset, 'id' | 'created_at' | 'is_dynamic'>;
-        Update: Partial<Omit<Asset, 'id' | 'created_at' | 'is_dynamic'>>;
+        Insert: { name: string; category: AssetCategory; purchase_price: number; purchase_date: string; status: AssetStatus; };
+        Update: { name?: string; category?: AssetCategory; purchase_price?: number; purchase_date?: string; status?: AssetStatus; };
       };
       debts: {
         Row: Debt;
-        Insert: Omit<Debt, 'id' | 'created_at'>;
-        Update: Partial<Omit<Debt, 'id' | 'created_at'>>;
+        Insert: { creditor_name: string; category: DebtCategory; description: string; total_amount: number; due_date: string; status: DebtStatus; };
+        Update: { creditor_name?: string; category?: DebtCategory; description?: string; total_amount?: number; due_date?: string; status?: DebtStatus; };
       };
       suppliers: {
         Row: Supplier;
-        Insert: Omit<Supplier, 'id' | 'created_at'>;
-        Update: Partial<Omit<Supplier, 'id' | 'created_at'>>;
+        Insert: { name: string; contact_person: string | null; phone: string | null; specialty: string | null; };
+        Update: { name?: string; contact_person?: string | null; phone?: string | null; specialty?: string | null; };
       };
       stock_movements: {
         Row: StockMovement;
-        Insert: Omit<StockMovement, 'id' | 'created_at'>;
-        Update: Partial<Omit<StockMovement, 'id' | 'created_at'>>;
+        Insert: { bahan_id: number; type: StockMovementType; quantity: number; supplier_id: number | null; notes: string | null; };
+        Update: { bahan_id?: number; type?: StockMovementType; quantity?: number; supplier_id?: number | null; notes?: string | null; };
       };
       finishings: {
         Row: Finishing;
-        Insert: Omit<Finishing, 'id' | 'created_at'>;
-        Update: Partial<Omit<Finishing, 'id' | 'created_at'>>;
+        Insert: { name: string; panjang_tambahan: number; lebar_tambahan: number; };
+        Update: { name?: string; panjang_tambahan?: number; lebar_tambahan?: number; };
       };
       printers: {
         Row: Printer;
-        Insert: Omit<Printer, 'id' | 'created_at'>;
-        Update: Partial<Omit<Printer, 'id' | 'created_at'>>;
+        Insert: { name: string; type: PrinterType; target: PrintTarget; is_default: boolean; };
+        Update: { name?: string; type?: PrinterType; target?: PrintTarget; is_default?: boolean; };
       };
       display_settings: {
         Row: DisplaySettings;
-        Insert: Omit<DisplaySettings, 'id' | 'created_at'>;
-        Update: Partial<Omit<DisplaySettings, 'id' | 'created_at'>>;
+        Insert: { youtube_url: YouTubePlaylistItem[] | null; };
+        Update: { youtube_url?: YouTubePlaylistItem[] | null; };
       };
       settings: {
         Row: { key: string; value: string; };
         Insert: { key: string; value: string; };
-        Update: { value: string; };
+        Update: { value?: string; };
       }
     };
     Views: {

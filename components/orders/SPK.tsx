@@ -21,10 +21,11 @@ const SPK = forwardRef<HTMLDivElement, SPKProps>(({ order, customer, bahanList, 
     return (
         <div ref={ref} className="bg-white text-black font-sans text-[10px] leading-tight uppercase">
             <div className="text-center">
-                <h1 className="font-bold text-sm">{customer?.name || 'N/A'}</h1>
+                <h1 className="font-bold text-sm">NALAMEDIA</h1>
             </div>
             <hr className="border-dashed border-t border-black my-1" />
             <div className="text-center">
+                <p className="font-bold text-sm">{customer?.name || 'N/A'}</p>
                 <p className="font-bold">Nota: {order.no_nota}</p>
                 <p>{formatDateForSPK(order.tanggal)}</p>
             </div>
@@ -32,7 +33,7 @@ const SPK = forwardRef<HTMLDivElement, SPKProps>(({ order, customer, bahanList, 
             
             <div className="flex font-bold">
                 <div className="w-[10%]">No.</div>
-                <div className="text-center w-[90%]">Detail Pesanan</div>
+                <div className="w-[90%]">Detail Pesanan</div>
             </div>
             <hr className="border-dashed border-t border-black my-1" />
 
@@ -50,8 +51,8 @@ const SPK = forwardRef<HTMLDivElement, SPKProps>(({ order, customer, bahanList, 
                             <div className="w-[90%]">
                                 <p className="font-bold break-words">{deskripsi}</p>
                                 <p className="break-words">{bahan?.name || 'Bahan Tidak Ditemukan'}</p>
-                                <p className="break-words">{ukuran}//{qty}//{finishingName}</p>
-                                
+                                <p className="break-words">{ukuran} // {qty}</p>
+                                <p className="break-words">{finishingName}</p>
                             </div>
                         </div>
                     );
@@ -59,10 +60,12 @@ const SPK = forwardRef<HTMLDivElement, SPKProps>(({ order, customer, bahanList, 
             </div>
             
             <hr className="border-dashed border-t border-black my-1" />
-            <div className="text-center">
-                <p className="font-bold text-[12px]">--PERHATIAN--</p>
-                <p>Cek data pekerjaan</p>
-                <p>sebelum cetak</p>
+            <div className="text-center text-[9px] space-y-0.5 pt-1">
+                <p>--PERHATIAN--</p>
+                <p>Cek data pekerjaan sebelum cetak.</p>
+                <p>Pastikan semua data benar.</p>
+                <p>Tanyakan ke Office jika ada data</p>
+                <p>yang salah atau kurang!!!</p>
                 <p>tempel struk ini ke barang</p>
                 <p>jika sudah selesai semua</p>
             </div>

@@ -171,38 +171,43 @@ export const useAppData = (user: User | undefined) => {
     };
     
     type Tables = Database['public']['Tables'];
+    type TableName = keyof Tables;
+    type TableRow = Tables[TableName]['Row'];
+    type TableInsert = Tables[TableName]['Insert'];
+    type TableUpdate = Tables[TableName]['Update'];
+    
     type TableWithIdKey = { [K in keyof Tables]: Tables[K]['Row'] extends { id: number } ? K : never }[keyof Tables];
 
     // --- Generic CRUD functions ---
-    const createRecord = async <TableName extends keyof Tables>(
-        table: TableName,
-        data: Tables[TableName]['Insert'],
-        setData: React.Dispatch<React.SetStateAction<Tables[TableName]['Row'][]>>,
+    const createRecord = async <T extends TableName>(
+        table: T,
+        data: Tables[T]['Insert'],
+        setData: React.Dispatch<React.SetStateAction<Tables[T]['Row'][]>>,
         successMessage: string
-    ): Promise<Tables[TableName]['Row']> => {
-        const { data: newRecord, error } = await supabase.from(table).insert(data as any).select().single();
+    ): Promise<Tables[T]['Row']> => {
+        const { data: newRecord, error } = await supabase.from(table).insert(data).select().single();
         if (error) {
             addToast(`Gagal: ${error.message}`, 'error');
             throw error;
         }
         if (newRecord) {
-            setData(prev => [...prev, newRecord as Tables[TableName]['Row']]);
+            setData(prev => [...prev, newRecord as Tables[T]['Row']]);
             addToast(successMessage, 'success');
-            return newRecord as Tables[TableName]['Row'];
+            return newRecord as Tables[T]['Row'];
         }
         const silentError = new Error('Gagal membuat data, tidak ada error dari server.');
         addToast(silentError.message, 'error');
         throw silentError;
     };
 
-    const updateRecord = async <TableName extends TableWithIdKey>(
-        table: TableName,
+    const updateRecord = async <T extends TableWithIdKey>(
+        table: T,
         id: number,
-        data: Tables[TableName]['Update'],
-        setData: React.Dispatch<React.SetStateAction<Tables[TableName]['Row'][]>>,
+        data: Tables[T]['Update'],
+        setData: React.Dispatch<React.SetStateAction<Tables[T]['Row'][]>>,
         successMessage: string
     ) => {
-        const { data: updatedRecord, error } = await supabase.from(table).update(data as any).eq('id', id as any).select().single();
+        const { data: updatedRecord, error } = await supabase.from(table).update(data).eq('id', id).select().single();
         if (error) { addToast(`Gagal: ${error.message}`, 'error'); throw error; }
         if (updatedRecord) {
             setData(prev => prev.map(item => ((item as any).id === id ? { ...item, ...updatedRecord } : item)));
@@ -210,13 +215,13 @@ export const useAppData = (user: User | undefined) => {
         addToast(successMessage, 'success');
     };
 
-    const deleteRecord = async <TableName extends TableWithIdKey>(
-        table: TableName,
+    const deleteRecord = async <T extends TableWithIdKey>(
+        table: T,
         id: number,
-        setData: React.Dispatch<React.SetStateAction<Tables[TableName]['Row'][]>>,
+        setData: React.Dispatch<React.SetStateAction<Tables[T]['Row'][]>>,
         successMessage: string
     ) => {
-        const { error } = await supabase.from(table).delete().eq('id', id as any);
+        const { error } = await supabase.from(table).delete().eq('id', id);
         if (error) { addToast(`Gagal: ${error.message}`, 'error'); throw error; }
         setData(prev => prev.filter(item => (item as {id: number}).id !== id));
         addToast(successMessage, 'success');
@@ -266,7 +271,7 @@ export const useAppData = (user: User | undefined) => {
             const employeeProfileData: Tables['employees']['Insert'] = { ...data, user_id: signUpData.user.id };
             const { data: newEmployee, error: profileError } = await supabase
                 .from('employees')
-                .insert(employeeProfileData as any)
+                .insert(employeeProfileData)
                 .select()
                 .single();
     
@@ -286,16 +291,18 @@ export const useAppData = (user: User | undefined) => {
             throw error; // Re-throw to be caught by the calling component
         } finally {
             // IMPORTANT: Always restore the original admin session.
-            const { error: sessionError } = await supabase.auth.setSession({
-                access_token: adminSession.access_token,
-                refresh_token: adminSession.refresh_token,
-            });
+            if (adminSession) {
+                const { error: sessionError } = await supabase.auth.setSession({
+                    access_token: adminSession.access_token,
+                    refresh_token: adminSession.refresh_token,
+                });
 
-            if (sessionError) {
-                addToast(`Gagal memulihkan sesi admin: ${sessionError.message}. Anda akan dilogout.`, 'error');
-                // If session restoration fails, the app is in an inconsistent state.
-                // Signing out completely is the safest recovery action.
-                await supabase.auth.signOut();
+                if (sessionError) {
+                    addToast(`Gagal memulihkan sesi admin: ${sessionError.message}. Anda akan dilogout.`, 'error');
+                    // If session restoration fails, the app is in an inconsistent state.
+                    // Signing out completely is the safest recovery action.
+                    await supabase.auth.signOut();
+                }
             }
         }
     };
@@ -336,7 +343,7 @@ export const useAppData = (user: User | undefined) => {
     // --- Complex Logic: Stock Movements, Expenses, Orders, Payments ---
 
     const addStockMovement = async (data: Omit<StockMovement, 'id' | 'created_at'>, fromExpense: boolean = false) => {
-        const { error: moveError } = await supabase.from('stock_movements').insert(data as any);
+        const { error: moveError } = await supabase.from('stock_movements').insert(data);
         if (moveError) { addToast(`Gagal mencatat pergerakan stok: ${moveError.message}`, 'error'); throw moveError; }
         
         // Update stock_qty on bahan table
@@ -344,7 +351,7 @@ export const useAppData = (user: User | undefined) => {
         const currentStock = bahan?.stock_qty || 0;
         const newStock = data.type === 'in' ? currentStock + data.quantity : currentStock - data.quantity;
         
-        const { error: updateError } = await supabase.from('bahan').update({ stock_qty: newStock } as any).eq('id', data.bahan_id);
+        const { error: updateError } = await supabase.from('bahan').update({ stock_qty: newStock }).eq('id', data.bahan_id);
         if (updateError) { addToast(`Gagal update stok: ${updateError.message}`, 'error'); throw updateError; }
         
         // Manually update local state to reflect changes immediately
@@ -378,14 +385,14 @@ export const useAppData = (user: User | undefined) => {
             supplier_id: null,
             notes: notes,
         };
-        const { error: moveError } = await supabase.from('stock_movements').insert(movementData as any);
+        const { error: moveError } = await supabase.from('stock_movements').insert(movementData);
         if (moveError) {
             addToast(`Gagal mencatat penyesuaian stok: ${moveError.message}`, 'error');
             throw moveError;
         }
     
         // 3. Update stock_qty on bahan table
-        const { data: updatedBahan, error: updateError } = await supabase.from('bahan').update({ stock_qty: newStockQty } as any).eq('id', bahanId).select().single();
+        const { data: updatedBahan, error: updateError } = await supabase.from('bahan').update({ stock_qty: newStockQty }).eq('id', bahanId).select().single();
         if (updateError) {
             addToast(`Gagal update stok: ${updateError.message}`, 'error');
             // TODO: Ideally, roll back the stock_movement insert here.
@@ -420,8 +427,8 @@ export const useAppData = (user: User | undefined) => {
 
     const updateNotaSetting = async (settings: NotaSetting) => {
         const updates = [
-            supabase.from('settings').update({ value: settings.prefix } as any).eq('key', 'nota_prefix'),
-            supabase.from('settings').update({ value: settings.start_number_str } as any).eq('key', 'nota_last_number')
+            supabase.from('settings').update({ value: settings.prefix }).eq('key', 'nota_prefix'),
+            supabase.from('settings').update({ value: settings.start_number_str }).eq('key', 'nota_last_number')
         ];
 
         const [prefixResult, numberResult] = await Promise.all(updates);
@@ -471,16 +478,16 @@ export const useAppData = (user: User | undefined) => {
         // 2. Insert order
         const { order_items, ...orderPayload } = orderData;
         const newOrderPayload: Tables['orders']['Insert'] = { ...orderPayload, no_nota: newNotaNumber };
-        const { data: newOrder, error: orderError } = await supabase.from('orders').insert(newOrderPayload as any).select().single();
+        const { data: newOrder, error: orderError } = await supabase.from('orders').insert(newOrderPayload).select().single();
         if (orderError) { addToast(`Gagal membuat order: ${orderError.message}`, 'error'); throw orderError; }
         
         // 3. Insert order_items
         const itemsPayload: Tables['order_items']['Insert'][] = order_items.map((item) => ({...item, order_id: newOrder.id}));
-        const { error: itemsError } = await supabase.from('order_items').insert(itemsPayload as any);
+        const { error: itemsError } = await supabase.from('order_items').insert(itemsPayload);
         if (itemsError) { addToast(`Gagal menyimpan item order: ${itemsError.message}`, 'error'); throw itemsError; }
         
         // 4. Update last number in settings WITH PADDING
-        await supabase.from('settings').update({ value: newPaddedNumberStr } as any).eq('key', 'nota_last_number');
+        await supabase.from('settings').update({ value: newPaddedNumberStr }).eq('key', 'nota_last_number');
         
         // 5. Refetch order to display it with items
         try {
@@ -538,7 +545,7 @@ export const useAppData = (user: User | undefined) => {
 
             const { data: newOrder, error: orderError } = await supabase
                 .from('orders')
-                .insert(newOrderDataForInsert as any)
+                .insert(newOrderDataForInsert)
                 .select()
                 .single();
 
@@ -551,7 +558,7 @@ export const useAppData = (user: User | undefined) => {
                     ...item,
                     order_id: newOrder.id,
                 }));
-                const { error: itemsError } = await supabase.from('order_items').insert(itemsPayload as any);
+                const { error: itemsError } = await supabase.from('order_items').insert(itemsPayload);
                 if (itemsError) throw itemsError;
             }
 
@@ -574,7 +581,7 @@ export const useAppData = (user: User | undefined) => {
     const addPaymentToOrder = async (orderId: number, paymentData: Omit<Payment, 'id' | 'created_at' | 'order_id'>) => {
         const { data: newPayment, error } = await supabase
             .from('payments')
-            .insert({ ...paymentData, order_id: orderId } as any)
+            .insert({ ...paymentData, order_id: orderId })
             .select()
             .single();
 
@@ -592,7 +599,7 @@ export const useAppData = (user: User | undefined) => {
                 const totalBillInCents = Math.round(calculateOrderTotal(order, customers, bahanList) * 100);
                 
                 if (totalPaidInCents >= totalBillInCents) {
-                    await supabase.from('orders').update({ status_pembayaran: 'Lunas' } as any).eq('id', orderId);
+                    await supabase.from('orders').update({ status_pembayaran: 'Lunas' }).eq('id', orderId);
                 }
             }
 
@@ -645,12 +652,12 @@ export const useAppData = (user: User | undefined) => {
         }
     
         try {
-            const { error: insertError } = await supabase.from('payments').insert(paymentInserts as any);
+            const { error: insertError } = await supabase.from('payments').insert(paymentInserts);
             if (insertError) throw insertError;
     
             if (orderUpdatePayloads.length > 0) {
                 const updatePromises = orderUpdatePayloads.map(update =>
-                    supabase.from('orders').update({ status_pembayaran: update.status_pembayaran } as any).eq('id', update.id)
+                    supabase.from('orders').update({ status_pembayaran: update.status_pembayaran }).eq('id', update.id)
                 );
                 await Promise.all(updatePromises);
             }
@@ -695,15 +702,15 @@ export const useAppData = (user: User | undefined) => {
         if (pelaksana_id !== null) {
             payload.pelaksana_id = pelaksana_id === '' ? null : pelaksana_id;
         }
-
-        const { data: updatedOrder, error } = await supabase.from('orders').update(payload as any).eq('id', orderId).select().single();
+    
+        const { error } = await supabase.from('orders').update(payload).eq('id', orderId);
         if (error) {
             addToast(`Gagal update status order: ${error.message}`, 'error');
-            await fetchInitialData();
             return;
         }
-
-        if (fullOrder.status_pesanan !== 'Proses' && status === 'Proses') {
+    
+        // Deduct stock when moving from 'Pending' to 'Waiting'
+        if (fullOrder.status_pesanan === 'Pending' && status === 'Waiting') {
             for (const item of fullOrder.order_items) {
                 const finishing = finishings.find(f => f.id === item.finishing_id);
                 const panjang_tambahan = finishing?.panjang_tambahan || 0;
@@ -711,7 +718,7 @@ export const useAppData = (user: User | undefined) => {
                 const totalPanjang = (item.panjang || 0) + panjang_tambahan;
                 const totalLebar = (item.lebar || 0) + lebar_tambahan;
                 const quantityToDeduct = (totalPanjang * totalLebar) * item.qty;
-
+    
                 if (quantityToDeduct > 0) {
                     await addStockMovement({
                         bahan_id: item.bahan_id,
@@ -724,22 +731,68 @@ export const useAppData = (user: User | undefined) => {
             }
             addToast(`Stok bahan untuk nota ${fullOrder.no_nota} telah dikurangi.`, 'info');
         }
-
-        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...updatedOrder } : o));
+        // Restore stock when moving from 'Waiting' or 'Proses' back to 'Pending'
+        else if (['Waiting', 'Proses'].includes(fullOrder.status_pesanan) && status === 'Pending') {
+             for (const item of fullOrder.order_items) {
+                const finishing = finishings.find(f => f.id === item.finishing_id);
+                const panjang_tambahan = finishing?.panjang_tambahan || 0;
+                const lebar_tambahan = finishing?.lebar_tambahan || 0;
+                const totalPanjang = (item.panjang || 0) + panjang_tambahan;
+                const totalLebar = (item.lebar || 0) + lebar_tambahan;
+                const quantityToRestore = (totalPanjang * totalLebar) * item.qty;
+    
+                if (quantityToRestore > 0) {
+                    await addStockMovement({
+                        bahan_id: item.bahan_id,
+                        type: 'in', // Restore stock
+                        quantity: quantityToRestore,
+                        supplier_id: null,
+                        notes: `Pembatalan proses untuk order ${fullOrder.no_nota}`,
+                    }, true);
+                }
+            }
+            addToast(`Stok bahan untuk nota ${fullOrder.no_nota} telah dikembalikan.`, 'info');
+        }
+    
+        // Refetch the updated order to get the most accurate state
+        const updatedFullOrder = await fetchFullOrder(orderId);
+        if (updatedFullOrder) {
+            setOrders(prev => prev.map(o => o.id === orderId ? updatedFullOrder : o));
+            if (status !== 'Proses' && status !== 'Selesai') { // Avoid double toasts for automatic updates
+                addToast(`Status pesanan ${fullOrder.no_nota} diubah menjadi ${status}.`, 'success');
+            }
+        }
     };
 
     const updateOrderItemStatus = async (orderId: number, itemId: number, status: ProductionStatus) => {
-        const payload: Tables['order_items']['Update'] = { status_produksi: status };
-        const { error } = await supabase.from('order_items').update(payload as any).eq('id', itemId);
-        if (error) { addToast('Gagal update status item.', 'error'); return; }
-        
-        setOrders(prev => prev.map(order => {
-            if (order.id !== orderId) return order;
-            return {
-                ...order,
-                order_items: order.order_items.map(item => item.id === itemId ? { ...item, status_produksi: status } : item)
-            };
-        }));
+        const { error } = await supabase.from('order_items').update({ status_produksi: status }).eq('id', itemId);
+        if (error) {
+            addToast('Gagal update status item.', 'error');
+            return;
+        }
+
+        // Refetch to check overall status and update if necessary
+        const fullOrder = await fetchFullOrder(orderId);
+        if (fullOrder) {
+            // Check if this action triggers a main order status change
+            const anyItemProses = fullOrder.order_items.some(i => i.status_produksi === 'Proses');
+            const allItemsSelesai = fullOrder.order_items.every(i => i.status_produksi === 'Selesai');
+
+            let newStatus: OrderStatus | null = null;
+            if (allItemsSelesai && fullOrder.status_pesanan !== 'Selesai') {
+                newStatus = 'Selesai';
+            } else if (anyItemProses && fullOrder.status_pesanan === 'Waiting') {
+                newStatus = 'Proses';
+            }
+
+            if (newStatus) {
+                await updateOrderStatus(orderId, newStatus, null);
+                // The above function will refetch and update state, so we don't need to do it twice
+            } else {
+                // If main status doesn't change, just update the local state for the item
+                setOrders(prev => prev.map(o => o.id === orderId ? fullOrder : o));
+            }
+        }
     };
     
     const updateYouTubePlaylist = async (playlist: YouTubePlaylistItem[]) => {
@@ -753,9 +806,9 @@ export const useAppData = (user: User | undefined) => {
           throw checkError;
       }
       if (existing) {
-          result = await supabase.from('display_settings').update(payload as any).eq('id', 1).select().single();
+          result = await supabase.from('display_settings').update(payload).eq('id', 1).select().single();
       } else {
-          result = await supabase.from('display_settings').insert(payload as any).select().single();
+          result = await supabase.from('display_settings').insert(payload).select().single();
       }
       
       const { data, error } = result;

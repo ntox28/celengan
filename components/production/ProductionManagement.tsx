@@ -1,5 +1,3 @@
-
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Customer, Bahan, Order, OrderItem, ProductionStatus, User as AuthUser, OrderStatus, Finishing, Employee } from '../../lib/supabaseClient';
 import ChevronDownIcon from '../icons/ChevronDownIcon';
@@ -52,7 +50,7 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({ orders, cus
     const filteredOrders = useMemo(() => {
         return orders
             .filter(order => {
-                if (order.status_pesanan !== 'Proses') return false;
+                if (!['Waiting', 'Proses'].includes(order.status_pesanan)) return false;
                 
                 const customerMatch = filters.customerId === 'all' || order.pelanggan_id === Number(filters.customerId);
                 const startDateMatch = !filters.startDate || order.tanggal >= filters.startDate;
@@ -107,7 +105,7 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({ orders, cus
     const handleTakeJob = (orderId: number) => {
         const order = orders.find(o => o.id === orderId);
         if (order) {
-            updateOrderStatus(orderId, 'Proses', loggedInUser.id);
+            updateOrderStatus(orderId, 'Waiting', loggedInUser.id);
             addToast(`Pekerjaan untuk Nota ${order.no_nota} telah diambil.`, 'success');
         }
     };
@@ -115,7 +113,7 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({ orders, cus
     const handleReleaseJob = (orderId: number) => {
         const order = orders.find(o => o.id === orderId);
         if (order) {
-            updateOrderStatus(orderId, 'Proses', ''); // Set pelaksana_id to empty or null
+            updateOrderStatus(orderId, 'Waiting', ''); // Set pelaksana_id to empty or null
             addToast(`Pekerjaan untuk Nota ${order.no_nota} telah dilepaskan.`, 'info');
         }
     };
@@ -172,13 +170,18 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({ orders, cus
                     <tbody className="divide-y divide-slate-200 dark:divide-slate-700 md:divide-y-0">
                         {currentOrders.map((order) => {
                            const overallStatus = getOverallOrderStatus(order);
+                           const notaBadgeColor = 
+                                overallStatus === 'Selesai' ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' :
+                                overallStatus === 'Proses' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300' :
+                                'bg-gray-100 text-gray-800 dark:bg-slate-600 dark:text-slate-200';
+
                            return (
                            <React.Fragment key={order.id}>
                             <tr 
                                 className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors duration-200"
                             >
                                 <th scope="row" className="px-6 py-4 font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap">
-                                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(overallStatus)}`}>
+                                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${notaBadgeColor}`}>
                                         {order.no_nota}
                                     </span>
                                 </th>

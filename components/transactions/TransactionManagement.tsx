@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import html2canvas from 'html2canvas';
-import { Customer, CustomerLevel, Bahan, Order, Payment, PaymentStatus, ProductionStatus, Employee, User as AuthUser, Bank, Finishing } from '../../lib/supabaseClient';
+import { Customer, CustomerLevel, Bahan, Order, Payment, PaymentStatus, ProductionStatus, Employee, User as AuthUser, Bank, Finishing, OrderStatus } from '../../lib/supabaseClient';
 import PrintIcon from '../icons/PrintIcon';
 import WhatsAppIcon from '../icons/WhatsAppIcon';
 import ImageIcon from '../icons/ImageIcon';
@@ -44,14 +44,16 @@ const getPaymentStatusColor = (status: PaymentStatus) => {
     return colors[status];
 };
 
-const getProductionStatusColor = (status: ProductionStatus) => {
-    const colors: Record<ProductionStatus, string> = {
-        'Belum Dikerjakan': 'bg-gray-100 text-gray-800 dark:bg-slate-600 dark:text-slate-200',
-        'Proses': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300',
+const getOrderStatusColor = (status: OrderStatus) => {
+    const colors: Record<OrderStatus, string> = {
         'Selesai': 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300',
+        'Proses': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300',
+        'Waiting': 'bg-gray-100 text-gray-800 dark:bg-slate-600 dark:text-slate-200',
+        'Pending': 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'
     };
     return colors[status];
 };
+
 
 const getPriceForCustomer = (bahan: Bahan, level: CustomerLevel): number => {
     switch (level) {
@@ -137,7 +139,7 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
     const transactions = useMemo(() => {
         return orders
             .filter(order => {
-                if (order.status_pesanan !== 'Proses') return false;
+                if (!['Waiting', 'Proses', 'Selesai'].includes(order.status_pesanan)) return false;
 
                 const customerMatch = filters.customerId === 'all' || order.pelanggan_id === Number(filters.customerId);
                 const startDateMatch = !filters.startDate || order.tanggal >= filters.startDate;
@@ -370,7 +372,7 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
         if(!selectedOrder) return;
         const customer = customers.find(c => c.id === selectedOrder.pelanggan_id);
         const totalTagihan = calculateTotal(selectedOrder);
-        const kasir = getKasirName(selectedOrder);
+        const kasirName = getKasirName(selectedOrder);
         
         let itemsList = '';
         selectedOrder.order_items.forEach(item => {
@@ -390,7 +392,7 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
         let message = `*Nala Media*\nJl. Prof. Moh. Yamin,Cerbonan,Karanganyar\n(Timur Stadion 45)\nTelp: 0813-9872-7722\n--------------------------------\n`;
         message += `No Nota  : ${selectedOrder.no_nota}\n`;
         message += `Tanggal  : ${new Date(selectedOrder.tanggal).toLocaleString('id-ID', {day: '2-digit', month: '2-digit', year: 'numeric'})}\n`;
-        message += `Kasir    : ${kasir}\n`;
+        message += `Kasir    : ${kasirName}\n`;
         message += `Pelanggan: ${customer?.name || 'N/A'}\n`;
         message += `--------------------------------\n`;
         message += itemsList;
@@ -476,7 +478,7 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
                                 <tr>
                                     <th scope="col" className="px-6 py-3">No. Nota</th>
                                     <th scope="col" className="px-6 py-3">Pelanggan</th>
-                                    <th scope="col" className="px-6 py-3">Kasir</th>
+                                    <th scope="col" className="px-6 py-3 text-center">Status Pesanan</th>
                                     <th scope="col" className="px-6 py-3 text-right">Total Tagihan</th>
                                     <th scope="col" className="px-6 py-3 text-center">Status Pembayaran</th>
                                     <th scope="col" className="px-6 py-3 text-center">Aksi</th>
@@ -491,12 +493,14 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
                                             className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors duration-200"
                                         >
                                             <th scope="row" className="px-6 py-4 font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap">
-                                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${getPaymentStatusColor(order.status_pembayaran)}`}>
-                                                    {order.no_nota}
-                                                </span>
+                                                {order.no_nota}
                                             </th>
                                             <td data-label="Pelanggan" className="px-6 py-4">{customers.find(c => c.id === order.pelanggan_id)?.name || 'N/A'}</td>
-                                            <td data-label="Kasir" className="px-6 py-4 capitalize">{getKasirName(order)}</td>
+                                            <td data-label="Status Pesanan" className="px-6 py-4 text-center">
+                                                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getOrderStatusColor(order.status_pesanan)}`}>
+                                                    {order.status_pesanan}
+                                                </span>
+                                            </td>
                                             <td data-label="Total Tagihan" className="px-6 py-4 text-right font-semibold">{formatCurrency(total)}</td>
                                             <td data-label="Status Pembayaran" className="px-6 py-4 text-center">
                                                 <button 
