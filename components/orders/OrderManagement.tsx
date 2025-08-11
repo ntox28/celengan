@@ -13,6 +13,7 @@ import SettingsIcon from '../icons/SettingsIcon';
 import NotaManagement from '../settings/NotaManagement';
 import FinishingManagement from '../settings/FinishingManagement';
 import UserPlusIcon from '../icons/UserPlusIcon';
+import CheckCircleIcon from '../icons/CheckCircleIcon';
 
 type LocalOrderItem = {
     local_id: number;
@@ -102,7 +103,7 @@ interface OrderManagementProps {
     deleteFinishing: (id: number) => Promise<void>;
     loggedInUser: AuthUser;
     addOrder: (orderData: Omit<OrderRow, 'id' | 'created_at' | 'no_nota'> & { order_items: Omit<OrderItem, 'id'|'created_at'|'order_id'>[] }) => Promise<void>;
-    updateOrder: (id: number, orderData: Partial<Omit<OrderRow, 'id' | 'created_at'>> & { order_items?: Omit<OrderItem, 'id'|'created_at'|'order_id'>[] }) => Promise<void>;
+    updateOrder: (id: number, orderData: Partial<Omit<OrderRow, 'id' | 'created_at'>> & { order_items?: (Omit<OrderItem, 'created_at'|'order_id'> & {id?: number})[] }) => Promise<void>;
     deleteOrder: (id: number) => Promise<void>;
     updateOrderStatus: (orderId: number, status: OrderStatus, pelaksana_id?: string | null) => Promise<void>;
     notaSetting: NotaSetting;
@@ -328,9 +329,14 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
             addToast('Pelanggan harus dipilih.', 'error');
             return;
         }
+        if (formData.order_items.some(item => !item.bahan_id || item.bahan_id === 0)) {
+            addToast('Setiap item pesanan harus memiliki bahan yang dipilih.', 'error');
+            return;
+        }
         setIsLoading(true);
 
         const preparedOrderItems = formData.order_items.map(item => ({
+            id: item.id,
             bahan_id: item.bahan_id,
             deskripsi_pesanan: item.deskripsi_pesanan,
             finishing_id: item.finishing_id,
@@ -342,6 +348,11 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
         
         try {
             if (editingOrder) {
+                if (editingOrder.status_pesanan !== 'Pending') {
+                    addToast('Hanya order dengan status "Pending" yang bisa diedit.', 'error');
+                    setIsLoading(false);
+                    return;
+                }
                 const { no_nota, ...updatePayload } = formData;
                 const finalUpdatePayload = {
                     ...updatePayload,
@@ -352,13 +363,15 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
                 const { no_nota, ...addPayload } = formData;
                 const finalAddPayload = {
                     ...addPayload,
-                    order_items: preparedOrderItems,
+                    order_items: preparedOrderItems.map(({id, ...rest}) => rest),
                 };
                 await addOrder(finalAddPayload);
                 handleAddNew();
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to save order:", error);
+            const errorMessage = error.message || 'Terjadi kesalahan yang tidak diketahui.';
+            addToast(`Gagal menyimpan order: ${errorMessage}`, 'error');
         } finally {
             setIsLoading(false);
         }
@@ -512,7 +525,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
                                     <div>
                                         <label htmlFor="no_nota" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">No. Nota</label>
                                         <div className="w-full pl-4 pr-4 py-3 bg-slate-100 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-600 rounded-md text-slate-500 dark:text-slate-400">
-                                            {editingOrder ? formData.no_nota : "Akan digenerate otomatis"}
+                                            {editingOrder ? formData.no_nota : "Nota Otomatis"}
                                         </div>
                                     </div>
                                     <div>
@@ -641,7 +654,9 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
                                             <td data-label="Pelanggan" className="px-6 py-4">{getCustomerName(order.pelanggan_id)}</td>
                                             <td data-label="Status Pesanan" className="px-6 py-4 text-center">
                                                 <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                                    order.status_pesanan === 'Proses'
+                                                    order.status_pesanan === 'Selesai'
+                                                        ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300'
+                                                        : order.status_pesanan === 'Proses'
                                                         ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300'
                                                         : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300'
                                                 }`}>
@@ -658,6 +673,15 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
                                                 </button>
                                             </td>
                                             <td data-label="Aksi" className="px-6 py-4 text-center space-x-2">
+                                                {order.status_pesanan === 'Proses' && (
+                                                     <button
+                                                        onClick={() => { if(window.confirm(`Yakin ingin menyelesaikan pesanan Nota ${order.no_nota}?`)) { updateOrderStatus(order.id, 'Selesai')}}}
+                                                        className="text-green-600 hover:text-green-500 dark:text-green-400 dark:hover:text-green-300 transition-colors p-1"
+                                                        title="Tandai Selesai"
+                                                    >
+                                                        <CheckCircleIcon className="w-5 h-5" />
+                                                    </button>
+                                                )}
                                                 {order.status_pesanan === 'Pending' && (
                                                     <button
                                                         onClick={() => handleProcessOrder(order.id)}
@@ -667,7 +691,12 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
                                                         <PlayCircleIcon className="w-5 h-5" />
                                                     </button>
                                                 )}
-                                                <button onClick={() => handleEdit(order)} className="text-cyan-600 hover:text-cyan-500 dark:text-cyan-400 dark:hover:text-cyan-300 transition-colors p-1" title="Edit Pesanan">
+                                                <button 
+                                                    onClick={() => handleEdit(order)} 
+                                                    disabled={order.status_pesanan !== 'Pending'}
+                                                    className="text-cyan-600 hover:text-cyan-500 dark:text-cyan-400 dark:hover:text-cyan-300 transition-colors p-1 disabled:text-slate-400 dark:disabled:text-slate-600 disabled:cursor-not-allowed" 
+                                                    title={order.status_pesanan !== 'Pending' ? 'Hanya order dengan status Pending yang bisa diedit' : 'Edit Pesanan'}
+                                                >
                                                     <EditIcon className="w-5 h-5" />
                                                 </button>
                                                 <button onClick={() => handlePrintSpk(order)} className="text-slate-600 hover:text-slate-500 dark:text-slate-400 dark:hover:text-slate-300 transition-colors p-1" title="Cetak SPK">
