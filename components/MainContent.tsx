@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import CustomerManagement from './customers/CustomerManagement';
 import { EmployeePosition, User as AuthUser, YouTubePlaylistItem } from '../lib/supabaseClient';
 import EmployeeManagement from './employees/EmployeeManagement';
@@ -45,6 +45,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
     bahanList, addBahan, updateBahan, deleteBahan,
     employees, addEmployee, updateEmployee, deleteEmployee,
     orders, addOrder, updateOrder, deleteOrder, addPaymentToOrder, updateOrderStatus, updateOrderItemStatus,
+    loadMoreOrders, hasMoreOrders, isOrderLoading,
     expenses, addExpense, updateExpense, deleteExpense,
     banks, addBank, updateBank, deleteBank,
     assets, addAsset, updateAsset, deleteAsset,
@@ -64,11 +65,22 @@ const MainContent: React.FC<MainContentProps> = (props) => {
   const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
   const [newYoutubeUrl, setNewYoutubeUrl] = useState('');
   const [isAddingUrl, setIsAddingUrl] = useState(false);
+  const [stagedPlaylist, setStagedPlaylist] = useState<YouTubePlaylistItem[]>([]);
+
+  useEffect(() => {
+    setStagedPlaylist(displaySettings?.youtube_url || []);
+  }, [displaySettings]);
   
   const employee = employees.find(e => e.user_id === user.id);
   const userRole = employee?.position || (user.user_metadata as { userrole?: EmployeePosition })?.userrole || 'Kasir';
   const displayName = employee ? employee.name : (user.email || 'Pengguna');
   const avatarSeed = displayName;
+
+  const handleClosePlaylistModal = () => {
+    setIsPlaylistModalOpen(false);
+    // Discard any staged changes by re-syncing from the source of truth
+    setStagedPlaylist(displaySettings?.youtube_url || []);
+  };
 
   const handleAddYoutubeUrl = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,10 +98,8 @@ const MainContent: React.FC<MainContentProps> = (props) => {
 
     setIsAddingUrl(true);
     try {
-        const currentPlaylist = displaySettings?.youtube_url || [];
-        
-        if (currentPlaylist.some(item => item.url === newYoutubeUrl.trim())) {
-            addToast('URL ini sudah ada di dalam playlist.', 'info');
+        if (stagedPlaylist.some(item => item.url === newYoutubeUrl.trim())) {
+            addToast('URL ini sudah ada di dalam daftar.', 'info');
             setNewYoutubeUrl('');
             return;
         }
@@ -103,10 +113,9 @@ const MainContent: React.FC<MainContentProps> = (props) => {
 
         const newItem: YouTubePlaylistItem = { url: newYoutubeUrl.trim(), title };
         
-        const newPlaylist = [...currentPlaylist, newItem];
-        await updateYouTubePlaylist(newPlaylist);
+        setStagedPlaylist(prev => [...prev, newItem]);
         setNewYoutubeUrl('');
-        addToast(`"${title}" ditambahkan ke playlist.`, 'success');
+        addToast(`"${title}" ditambahkan. Buka 'Atur Playlist' untuk menyimpan.`, 'success');
     } catch (error: any) {
         addToast(error.message || 'Terjadi kesalahan.', 'error');
         console.error(error);
@@ -147,6 +156,9 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     deleteFinishing={deleteFinishing}
                     notaSetting={notaSetting}
                     updateNotaSetting={updateNotaSetting}
+                    loadMoreOrders={loadMoreOrders}
+                    hasMoreOrders={hasMoreOrders}
+                    isOrderLoading={isOrderLoading}
                 />;
       case 'Produksi':
         return <ProductionManagement 
@@ -241,9 +253,12 @@ const MainContent: React.FC<MainContentProps> = (props) => {
       {isPlaylistModalOpen && (
           <YouTubePlaylistModal
               isOpen={isPlaylistModalOpen}
-              onClose={() => setIsPlaylistModalOpen(false)}
-              settings={displaySettings}
-              onSave={updateYouTubePlaylist}
+              onClose={handleClosePlaylistModal}
+              playlistItems={stagedPlaylist}
+              onSave={async (newPlaylist) => {
+                  await updateYouTubePlaylist(newPlaylist);
+                  setIsPlaylistModalOpen(false); // Close modal on successful save
+              }}
           />
       )}
       {/* Header */}

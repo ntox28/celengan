@@ -1,0 +1,23 @@
+{
+  "name": "CELENGAN",
+  "short_name": "Celengan",
+  "description": "Bukan Sekedar Celeng Biasa",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1e293b",
+  "theme_color": "#ec4899",
+  "icons": [
+    {
+      "src": "https://xkvgflhjcnkythytbkuj.supabase.co/storage/v1/object/public/publik/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://xkvgflhjcnkythytbkuj.supabase.co/storage/v1/object/public/publik/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -4,7 +4,6 @@ import TrashIcon from '../icons/TrashIcon';
 import PrintIcon from '../icons/PrintIcon';
 import { Customer, CustomerLevel, Bahan, Order, OrderItem, User as AuthUser, ProductionStatus, OrderStatus, Finishing, OrderRow, NotaSetting } from '../../lib/supabaseClient';
 import ChevronDownIcon from '../icons/ChevronDownIcon';
-import Pagination from '../Pagination';
 import FilterBar from '../FilterBar';
 import { useToast } from '../../hooks/useToast';
 import SPK from './SPK';
@@ -109,6 +108,9 @@ interface OrderManagementProps {
     updateOrderStatus: (orderId: number, status: OrderStatus, pelaksana_id?: string | null) => Promise<void>;
     notaSetting: NotaSetting;
     updateNotaSetting: (settings: NotaSetting) => Promise<void>;
+    loadMoreOrders: () => void;
+    hasMoreOrders: boolean;
+    isOrderLoading: boolean;
 }
 
 const initialCustomerData: Omit<Customer, 'id' | 'created_at'> = { name: '', email: '', phone: '', address: '', level: 'End Customer' };
@@ -191,17 +193,15 @@ const AddCustomerModal: React.FC<{
 };
 
 
-const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustomer, bahanList, orders, finishings, addFinishing, updateFinishing, deleteFinishing, loggedInUser, addOrder, updateOrder, deleteOrder, updateOrderStatus, notaSetting, updateNotaSetting }) => {
+const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustomer, bahanList, orders, finishings, addFinishing, updateFinishing, deleteFinishing, loggedInUser, addOrder, updateOrder, deleteOrder, updateOrderStatus, notaSetting, updateNotaSetting, loadMoreOrders, hasMoreOrders, isOrderLoading }) => {
     const [editingOrder, setEditingOrder] = useState<Order | null>(null);
     const [formData, setFormData] = useState<LocalOrder>(emptyOrder);
     const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
-    const [currentPage, setCurrentPage] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     const [isFinishingModalOpen, setIsFinishingModalOpen] = useState(false);
     const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
     const { addToast } = useToast();
-    const ITEMS_PER_PAGE = 10;
     
     const [printableContent, setPrintableContent] = useState<React.ReactNode | null>(null);
     const formRef = useRef<HTMLDivElement>(null);
@@ -226,12 +226,9 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
                 const endDateMatch = !filters.endDate || order.tanggal <= filters.endDate;
                 const statusMatch = filters.status === 'all' || order.status_pembayaran === filters.status;
                 return customerMatch && startDateMatch && endDateMatch && statusMatch;
-            })
-            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+            });
+            // Sorting is now handled by the initial fetch in useAppData
     }, [orders, filters]);
-
-    const totalPages = Math.ceil(filteredOrders.length / ITEMS_PER_PAGE);
-    const currentOrders = filteredOrders.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
     useEffect(() => {
         if (printableContent) {
@@ -262,11 +259,6 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
         setFormData({ ...emptyOrder, order_items: [{ ...emptyItem, local_id: Date.now() }] });
         formRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
-
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [filters]);
-
 
     const handleFilterChange = (name: keyof typeof filters, value: string) => {
         setFilters(prev => ({ ...prev, [name]: value }));
@@ -651,7 +643,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200 dark:divide-slate-700 md:divide-y-0">
-                                    {currentOrders.map((order) => (
+                                    {filteredOrders.map((order) => (
                                        <React.Fragment key={order.id}>
                                         <tr 
                                             className={`hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors duration-200 ${editingOrder?.id === order.id ? 'bg-pink-50 dark:bg-pink-900/20' : ''}`}
@@ -770,8 +762,17 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
                                 </tbody>
                             </table>
                         </div>
-
-                        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+                        <div className="flex justify-center items-center mt-6 py-2 flex-shrink-0">
+                             {hasMoreOrders && (
+                                <button
+                                    onClick={loadMoreOrders}
+                                    disabled={isOrderLoading}
+                                    className="w-full sm:w-auto px-8 py-3 rounded-lg text-white bg-pink-600 hover:bg-pink-700 transition-colors disabled:bg-pink-300 disabled:cursor-wait"
+                                >
+                                    {isOrderLoading ? 'Memuat...' : 'Muat Lebih Banyak'}
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase, Customer, Employee, Bahan, Expense, Order, OrderItem, Payment, User, Bank, Asset, Debt, NotaSetting, Supplier, StockMovement, Finishing, OrderStatus, ProductionStatus, OrderRow, Database, CustomerLevel, PaymentStatus, DisplaySettings, YouTubePlaylistItem } from '../lib/supabaseClient';
 import { useToast } from './useToast';
 
@@ -34,8 +34,6 @@ const calculateOrderTotal = (order: Order, customers: Customer[], bahanList: Bah
     }, 0);
 };
 
-// Helper function to fetch a single order and manually attach its payments.
-// This bypasses the Supabase join that causes the schema cache error.
 const fetchFullOrder = async (orderId: number): Promise<Order | null> => {
     try {
         const { data: orderData, error: orderError } = await supabase.from('orders').select('*, order_items(*)').eq('id', orderId).single();
@@ -57,6 +55,7 @@ const fetchFullOrder = async (orderId: number): Promise<Order | null> => {
     }
 }
 
+const ORDERS_PAGE_SIZE = 25;
 
 export const useAppData = (user: User | undefined) => {
     const { addToast } = useToast();
@@ -77,39 +76,26 @@ export const useAppData = (user: User | undefined) => {
     const [finishings, setFinishings] = useState<Finishing[]>([]);
     const [displaySettings, setDisplaySettings] = useState<DisplaySettings | null>(null);
 
-    useEffect(() => {
-        if (user && !isDataLoaded) { // Only fetch if user exists and data isn't loaded
-            fetchInitialData();
-        } else if (!user) {
-            // If user logs out, clear data and reset loaded state
-            setEmployees([]);
-            setCustomers([]);
-            setBahanList([]);
-            setOrders([]);
-            setExpenses([]);
-            setBanks([]);
-            setAssets([]);
-            setDebts([]);
-            setSuppliers([]);
-            setStockMovements([]);
-            setFinishings([]);
-            setDisplaySettings(null);
-            setIsDataLoaded(false);
-        }
-    }, [user, isDataLoaded]);
+    // State for order pagination
+    const [orderPage, setOrderPage] = useState(0);
+    const [hasMoreOrders, setHasMoreOrders] = useState(true);
+    const [isOrderLoading, setIsOrderLoading] = useState(false);
 
-    const fetchInitialData = async () => {
+    const fetchInitialData = useCallback(async () => {
+        setIsDataLoaded(false); // Reset loading state for refetch
         try {
+            const from = 0;
+            const to = ORDERS_PAGE_SIZE - 1;
+
             const [
-                employeesRes, customersRes, bahanRes, ordersRes, paymentsRes, expensesRes,
-                banksRes, assetsRes, debtsRes, suppliersRes,
+                employeesRes, customersRes, bahanRes, initialOrdersRes, // Fetches first page only
+                expensesRes, banksRes, assetsRes, debtsRes, suppliersRes,
                 stockMovementsRes, finishingsRes, notaSettingsRes, displaySettingsRes
             ] = await Promise.all([
                 supabase.from('employees').select('*'),
                 supabase.from('customers').select('*'),
                 supabase.from('bahan').select('*'),
-                supabase.from('orders').select('*, order_items(*)'), // Fetch orders without payments join
-                supabase.from('payments').select('*'), // Fetch all payments separately
+                supabase.from('orders').select('*, order_items(*), payments(*)').order('created_at', { ascending: false }).range(from, to),
                 supabase.from('expenses').select('*'),
                 supabase.from('banks').select('*'),
                 supabase.from('assets').select('*'),
@@ -121,33 +107,14 @@ export const useAppData = (user: User | undefined) => {
                 supabase.from('display_settings').select('*').eq('id', 1).single()
             ]);
 
-            // Check for errors in parallel fetches
-            const responses = [employeesRes, customersRes, bahanRes, ordersRes, paymentsRes, expensesRes, banksRes, assetsRes, debtsRes, suppliersRes, stockMovementsRes, finishingsRes, notaSettingsRes, displaySettingsRes];
+            const responses = [employeesRes, customersRes, bahanRes, initialOrdersRes, expensesRes, banksRes, assetsRes, debtsRes, suppliersRes, stockMovementsRes, finishingsRes, notaSettingsRes, displaySettingsRes];
             for (const res of responses) {
-                if (res.error && (res.error as any).code !== 'PGRST116') { // PGRST116: single() returned no rows, which is ok for settings
-                    throw res.error;
-                }
+                if (res.error && (res.error as any).code !== 'PGRST116') throw res.error;
             }
 
-            // Manually combine orders and payments
-            const paymentsByOrderId = (paymentsRes.data || []).reduce<Record<number, Payment[]>>((acc, p) => {
-                if (p.order_id) {
-                    if (!acc[p.order_id]) acc[p.order_id] = [];
-                    acc[p.order_id].push(p);
-                }
-                return acc;
-            }, {});
-
-            const finalOrders = (ordersRes.data || []).map(o => ({
-                ...o,
-                payments: paymentsByOrderId[o.id] || []
-            }));
-
-            // Set data
             setEmployees(employeesRes.data || []);
             setCustomers(customersRes.data || []);
             setBahanList(bahanRes.data || []);
-            setOrders(finalOrders as Order[]);
             setExpenses(expensesRes.data || []);
             setBanks(banksRes.data || []);
             setAssets(assetsRes.data || []);
@@ -156,19 +123,150 @@ export const useAppData = (user: User | undefined) => {
             setStockMovements(stockMovementsRes.data || []);
             setFinishings(finishingsRes.data || []);
 
+            // Handle orders pagination
+            const initialOrdersData = initialOrdersRes.data || [];
+            setOrders(initialOrdersData as Order[]);
+            setOrderPage(0); // Reset page count
+            setHasMoreOrders(initialOrdersData.length === ORDERS_PAGE_SIZE);
+
             const prefix = notaSettingsRes.data?.find(s => s.key === 'nota_prefix')?.value || 'INV';
             const lastNumber = notaSettingsRes.data?.find(s => s.key === 'nota_last_number')?.value || '0';
             setNotaSetting({ prefix, start_number_str: lastNumber });
             setDisplaySettings(displaySettingsRes.data as DisplaySettings | null);
 
-            addToast('Data berhasil dimuat dari server.', 'info');
+            addToast('Data awal berhasil dimuat.', 'info');
         } catch (error: any) {
             console.error("Error fetching initial data:", error);
             addToast(`Gagal memuat data: ${error.message}`, 'error');
         } finally {
             setIsDataLoaded(true);
         }
-    };
+    }, [addToast]);
+
+    const loadMoreOrders = useCallback(async () => {
+        if (isOrderLoading || !hasMoreOrders) return;
+
+        setIsOrderLoading(true);
+        const nextPage = orderPage + 1;
+        const from = nextPage * ORDERS_PAGE_SIZE;
+        const to = from + ORDERS_PAGE_SIZE - 1;
+
+        try {
+            const { data, error } = await supabase.from('orders')
+                .select('*, order_items(*), payments(*)')
+                .order('created_at', { ascending: false })
+                .range(from, to);
+
+            if (error) throw error;
+            
+            setOrders(prev => [...prev, ...data as Order[]]);
+            setOrderPage(nextPage);
+            setHasMoreOrders(data.length === ORDERS_PAGE_SIZE);
+
+        } catch (error: any) {
+            addToast(`Gagal memuat order selanjutnya: ${error.message}`, 'error');
+        } finally {
+            setIsOrderLoading(false);
+        }
+    }, [isOrderLoading, hasMoreOrders, orderPage, addToast]);
+
+    useEffect(() => {
+        if (user && !isDataLoaded) {
+            fetchInitialData();
+        } else if (!user) {
+            setEmployees([]); setCustomers([]); setBahanList([]); setOrders([]); setExpenses([]); setBanks([]); setAssets([]); setDebts([]); setSuppliers([]); setStockMovements([]); setFinishings([]); setDisplaySettings(null);
+            setIsDataLoaded(false);
+        }
+    }, [user, isDataLoaded, fetchInitialData]);
+
+    useEffect(() => {
+        if (!user) return;
+
+        const handleDbChanges = async (payload: any) => {
+            const { table, eventType, new: newRecord, old: oldRecord } = payload;
+            
+            const handleRecord = (setter: React.Dispatch<React.SetStateAction<any[]>>, record: any, idKey: string = 'id') => {
+                 setter(prev => {
+                    const exists = prev.some(item => item[idKey] === record[idKey]);
+                    if (exists) { // Update
+                        return prev.map(item => item[idKey] === record[idKey] ? record : item);
+                    } else { // Insert
+                        return [record, ...prev];
+                    }
+                });
+            };
+
+            const handleDelete = (setter: React.Dispatch<React.SetStateAction<any[]>>, id: any, idKey: string = 'id') => {
+                setter(prev => prev.filter(item => item[idKey] !== id));
+            };
+
+            switch (table) {
+                case 'orders':
+                case 'order_items':
+                case 'payments':
+                    const orderId = eventType === 'DELETE' 
+                        ? (oldRecord.order_id || oldRecord.id) 
+                        : (newRecord.order_id || newRecord.id);
+                    if (!orderId) return;
+
+                    if (eventType === 'DELETE' && table === 'orders') {
+                        setOrders(prev => prev.filter(o => o.id !== orderId));
+                        addToast(`Order ${oldRecord.no_nota} telah dihapus.`, 'info');
+                    } else {
+                        const fullOrder = await fetchFullOrder(orderId);
+                        if (fullOrder) {
+                            handleRecord(setOrders, fullOrder);
+                            if(eventType === 'INSERT' && table === 'orders') {
+                                const customerName = customers.find(c => c.id === fullOrder.pelanggan_id)?.name || 'Pelanggan';
+                                addToast(`Nota baru ${fullOrder.no_nota} dari ${customerName} telah masuk!`, 'success', );
+                            }
+                        }
+                    }
+                    break;
+                case 'customers':
+                    if (eventType === 'DELETE') handleDelete(setCustomers, oldRecord.id); else handleRecord(setCustomers, newRecord);
+                    break;
+                case 'employees':
+                    if (eventType === 'DELETE') handleDelete(setEmployees, oldRecord.id); else handleRecord(setEmployees, newRecord);
+                    break;
+                case 'bahan':
+                    if (eventType === 'DELETE') handleDelete(setBahanList, oldRecord.id); else handleRecord(setBahanList, newRecord);
+                    break;
+                case 'expenses':
+                    if (eventType === 'DELETE') handleDelete(setExpenses, oldRecord.id); else handleRecord(setExpenses, newRecord);
+                    break;
+                case 'banks':
+                    if (eventType === 'DELETE') handleDelete(setBanks, oldRecord.id); else handleRecord(setBanks, newRecord);
+                    break;
+                case 'assets':
+                    if (eventType === 'DELETE') handleDelete(setAssets, oldRecord.id); else handleRecord(setAssets, newRecord);
+                    break;
+                case 'debts':
+                     if (eventType === 'DELETE') handleDelete(setDebts, oldRecord.id); else handleRecord(setDebts, newRecord);
+                    break;
+                case 'suppliers':
+                    if (eventType === 'DELETE') handleDelete(setSuppliers, oldRecord.id); else handleRecord(setSuppliers, newRecord);
+                    break;
+                case 'finishings':
+                    if (eventType === 'DELETE') handleDelete(setFinishings, oldRecord.id); else handleRecord(setFinishings, newRecord);
+                    break;
+                 case 'display_settings':
+                    if (eventType !== 'DELETE') setDisplaySettings(newRecord);
+                    break;
+            }
+        };
+
+        const subscription = supabase.channel('realtime-channel')
+            .on('postgres_changes', { event: '*', schema: 'public' }, handleDbChanges)
+            .subscribe();
+
+        console.log('Realtime subscription started.');
+
+        return () => {
+            console.log('Unsubscribing from realtime channel.');
+            supabase.removeChannel(subscription);
+        };
+    }, [user, customers, addToast]);
     
     type Tables = Database['public']['Tables'];
     type TableName = keyof Tables;
@@ -182,7 +280,7 @@ export const useAppData = (user: User | undefined) => {
     const createRecord = async <T extends TableName>(
         table: T,
         data: Tables[T]['Insert'],
-        setData: React.Dispatch<React.SetStateAction<Tables[T]['Row'][]>>,
+        // setData: React.Dispatch<React.SetStateAction<Tables[T]['Row'][]>>, // Realtime handles this
         successMessage: string
     ): Promise<Tables[T]['Row']> => {
         const { data: newRecord, error } = await supabase.from(table).insert(data).select().single();
@@ -191,7 +289,7 @@ export const useAppData = (user: User | undefined) => {
             throw error;
         }
         if (newRecord) {
-            setData(prev => [...prev, newRecord as Tables[T]['Row']]);
+            // setData(prev => [...prev, newRecord as Tables[T]['Row']]); // Let realtime handle UI update
             addToast(successMessage, 'success');
             return newRecord as Tables[T]['Row'];
         }
@@ -204,33 +302,31 @@ export const useAppData = (user: User | undefined) => {
         table: T,
         id: number,
         data: Tables[T]['Update'],
-        setData: React.Dispatch<React.SetStateAction<Tables[T]['Row'][]>>,
+        // setData: React.Dispatch<React.SetStateAction<Tables[T]['Row'][]>>,
         successMessage: string
     ) => {
-        const { data: updatedRecord, error } = await supabase.from(table).update(data).eq('id', id).select().single();
+        const { error } = await supabase.from(table).update(data).eq('id', id);
         if (error) { addToast(`Gagal: ${error.message}`, 'error'); throw error; }
-        if (updatedRecord) {
-            setData(prev => prev.map(item => ((item as any).id === id ? { ...item, ...updatedRecord } : item)));
-        }
+        // Let realtime handle UI update
         addToast(successMessage, 'success');
     };
 
     const deleteRecord = async <T extends TableWithIdKey>(
         table: T,
         id: number,
-        setData: React.Dispatch<React.SetStateAction<Tables[T]['Row'][]>>,
+        // setData: React.Dispatch<React.SetStateAction<Tables[T]['Row'][]>>,
         successMessage: string
     ) => {
         const { error } = await supabase.from(table).delete().eq('id', id);
         if (error) { addToast(`Gagal: ${error.message}`, 'error'); throw error; }
-        setData(prev => prev.filter(item => (item as {id: number}).id !== id));
+        // Let realtime handle UI update
         addToast(successMessage, 'success');
     };
     
     // --- Customers ---
-    const addCustomer = async (data: Omit<Customer, 'id' | 'created_at'>): Promise<Customer> => createRecord('customers', data, setCustomers, 'Pelanggan berhasil ditambahkan.');
-    const updateCustomer = async (id: number, data: Partial<Omit<Customer, 'id' | 'created_at'>>) => updateRecord('customers', id, data, setCustomers, 'Pelanggan berhasil diperbarui.');
-    const deleteCustomer = async (id: number) => deleteRecord('customers', id, setCustomers, 'Pelanggan berhasil dihapus.');
+    const addCustomer = async (data: Omit<Customer, 'id' | 'created_at'>): Promise<Customer> => createRecord('customers', data, 'Pelanggan berhasil ditambahkan.');
+    const updateCustomer = async (id: number, data: Partial<Omit<Customer, 'id' | 'created_at'>>) => updateRecord('customers', id, data, 'Pelanggan berhasil diperbarui.');
+    const deleteCustomer = async (id: number) => deleteRecord('customers', id, 'Pelanggan berhasil dihapus.');
 
     // --- Employees ---
     const addEmployee = async (data: Omit<Employee, 'id' | 'created_at'>, password: string) => {
@@ -246,99 +342,68 @@ export const useAppData = (user: User | undefined) => {
         }
     
         try {
-            // Sign up the new user. This will change the current session.
             const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-                email: data.email,
-                password: password,
-                options: {
-                    data: { userrole: data.position }
-                }
+                email: data.email, password: password, options: { data: { userrole: data.position } }
             });
     
-            if (signUpError) {
-                // If sign up fails (e.g., invalid email, user exists), throw the error.
-                // The finally block will still restore the admin session.
-                throw signUpError;
-            }
+            if (signUpError) throw signUpError;
+            if (!signUpData.user) throw new Error('Gagal membuat user: tidak ada data user yang dikembalikan oleh Supabase.');
     
-            // This handles the case where email confirmation is required.
-            // A user is created, but no session is returned. We must have a user object to proceed.
-            if (!signUpData.user) {
-                throw new Error('Gagal membuat user: tidak ada data user yang dikembalikan oleh Supabase.');
-            }
-    
-            // Create the corresponding profile in the 'employees' table.
             const employeeProfileData: Tables['employees']['Insert'] = { ...data, user_id: signUpData.user.id };
-            const { data: newEmployee, error: profileError } = await supabase
-                .from('employees')
-                .insert(employeeProfileData)
-                .select()
-                .single();
-    
+            const { error: profileError } = await supabase.from('employees').insert(employeeProfileData);
             if (profileError) {
-                // Attempt to clean up the created auth user if profile creation fails.
-                // This requires admin privileges, which we don't have, so we notify the user.
                 addToast(`Akun login dibuat, tapi GAGAL membuat profil: ${profileError.message}. Harap hapus user login manual.`, 'error');
                 throw profileError;
-            }
-    
-            if (newEmployee) {
-                setEmployees(prev => [...prev, newEmployee]);
             }
             addToast('User dan profil berhasil dibuat. User mungkin perlu verifikasi email.', 'success');
         } catch (error: any) {
             addToast(`Gagal menyimpan user: ${error.message}`, 'error');
-            throw error; // Re-throw to be caught by the calling component
+            throw error;
         } finally {
-            // IMPORTANT: Always restore the original admin session.
             if (adminSession) {
                 const { error: sessionError } = await supabase.auth.setSession({
-                    access_token: adminSession.access_token,
-                    refresh_token: adminSession.refresh_token,
+                    access_token: adminSession.access_token, refresh_token: adminSession.refresh_token,
                 });
-
                 if (sessionError) {
                     addToast(`Gagal memulihkan sesi admin: ${sessionError.message}. Anda akan dilogout.`, 'error');
-                    // If session restoration fails, the app is in an inconsistent state.
-                    // Signing out completely is the safest recovery action.
                     await supabase.auth.signOut();
                 }
             }
         }
     };
 
-    const updateEmployee = async (id: number, data: Partial<Omit<Employee, 'id' | 'created_at'>>) => updateRecord('employees', id, data, setEmployees, 'User berhasil diperbarui.');
-    const deleteEmployee = async (id: number) => deleteRecord('employees', id, setEmployees, 'User berhasil dihapus.');
+    const updateEmployee = async (id: number, data: Partial<Omit<Employee, 'id' | 'created_at'>>) => updateRecord('employees', id, data, 'User berhasil diperbarui.');
+    const deleteEmployee = async (id: number) => deleteRecord('employees', id, 'User berhasil dihapus.');
 
     // --- Bahan ---
-    const addBahan = async (data: Omit<Bahan, 'id' | 'created_at' | 'stock_qty'>) => createRecord('bahan', data, setBahanList, 'Bahan berhasil ditambahkan.');
-    const updateBahan = async (id: number, data: Partial<Omit<Bahan, 'id' | 'created_at'>>) => updateRecord('bahan', id, data, setBahanList, 'Bahan berhasil diperbarui.');
-    const deleteBahan = async (id: number) => deleteRecord('bahan', id, setBahanList, 'Bahan berhasil dihapus.');
+    const addBahan = async (data: Omit<Bahan, 'id' | 'created_at' | 'stock_qty'>) => createRecord('bahan', data, 'Bahan berhasil ditambahkan.');
+    const updateBahan = async (id: number, data: Partial<Omit<Bahan, 'id' | 'created_at'>>) => updateRecord('bahan', id, data, 'Bahan berhasil diperbarui.');
+    const deleteBahan = async (id: number) => deleteRecord('bahan', id, 'Bahan berhasil dihapus.');
 
     // --- Banks ---
-    const addBank = async (data: Omit<Bank, 'id' | 'created_at'>) => createRecord('banks', data, setBanks, 'Sumber dana berhasil ditambahkan.');
-    const updateBank = async (id: number, data: Partial<Omit<Bank, 'id' | 'created_at'>>) => updateRecord('banks', id, data, setBanks, 'Sumber dana berhasil diperbarui.');
-    const deleteBank = async (id: number) => deleteRecord('banks', id, setBanks, 'Sumber dana berhasil dihapus.');
+    const addBank = async (data: Omit<Bank, 'id' | 'created_at'>) => createRecord('banks', data, 'Sumber dana berhasil ditambahkan.');
+    const updateBank = async (id: number, data: Partial<Omit<Bank, 'id' | 'created_at'>>) => updateRecord('banks', id, data, 'Sumber dana berhasil diperbarui.');
+    const deleteBank = async (id: number) => deleteRecord('banks', id, 'Sumber dana berhasil dihapus.');
 
     // --- Assets ---
-    const addAsset = async (data: Omit<Asset, 'id' | 'created_at' | 'is_dynamic'>) => createRecord('assets', data, setAssets, 'Aset berhasil ditambahkan.');
-    const updateAsset = async (id: number, data: Partial<Omit<Asset, 'id' | 'created_at' | 'is_dynamic'>>) => updateRecord('assets', id, data, setAssets, 'Aset berhasil diperbarui.');
-    const deleteAsset = async (id: number) => deleteRecord('assets', id, setAssets, 'Aset berhasil dihapus.');
+    const addAsset = async (data: Omit<Asset, 'id' | 'created_at' | 'is_dynamic'>) => createRecord('assets', data, 'Aset berhasil ditambahkan.');
+    const updateAsset = async (id: number, data: Partial<Omit<Asset, 'id' | 'created_at' | 'is_dynamic'>>) => updateRecord('assets', id, data, 'Aset berhasil diperbarui.');
+    const deleteAsset = async (id: number) => deleteRecord('assets', id, 'Aset berhasil dihapus.');
 
     // --- Debts ---
-    const addDebt = async (data: Omit<Debt, 'id' | 'created_at'>) => createRecord('debts', data, setDebts, 'Data hutang berhasil ditambahkan.');
-    const updateDebt = async (id: number, data: Partial<Omit<Debt, 'id' | 'created_at'>>) => updateRecord('debts', id, data, setDebts, 'Data hutang berhasil diperbarui.');
-    const deleteDebt = async (id: number) => deleteRecord('debts', id, setDebts, 'Data hutang berhasil dihapus.');
+    const addDebt = async (data: Omit<Debt, 'id' | 'created_at'>) => createRecord('debts', data, 'Data hutang berhasil ditambahkan.');
+    const updateDebt = async (id: number, data: Partial<Omit<Debt, 'id' | 'created_at'>>) => updateRecord('debts', id, data, 'Data hutang berhasil diperbarui.');
+    const deleteDebt = async (id: number) => deleteRecord('debts', id, 'Data hutang berhasil dihapus.');
 
     // --- Suppliers ---
-    const addSupplier = async (data: Omit<Supplier, 'id' | 'created_at'>) => createRecord('suppliers', data, setSuppliers, 'Suplier berhasil ditambahkan.');
-    const updateSupplier = async (id: number, data: Partial<Omit<Supplier, 'id' | 'created_at'>>) => updateRecord('suppliers', id, data, setSuppliers, 'Suplier berhasil diperbarui.');
-    const deleteSupplier = async (id: number) => deleteRecord('suppliers', id, setSuppliers, 'Suplier berhasil dihapus.');
+    const addSupplier = async (data: Omit<Supplier, 'id' | 'created_at'>) => createRecord('suppliers', data, 'Suplier berhasil ditambahkan.');
+    const updateSupplier = async (id: number, data: Partial<Omit<Supplier, 'id' | 'created_at'>>) => updateRecord('suppliers', id, data, 'Suplier berhasil diperbarui.');
+    const deleteSupplier = async (id: number) => deleteRecord('suppliers', id, 'Suplier berhasil dihapus.');
 
     // --- Finishings ---
-    const addFinishing = async (data: Omit<Finishing, 'id' | 'created_at'>) => createRecord('finishings', data, setFinishings, 'Finishing berhasil ditambahkan.');
-    const updateFinishing = async (id: number, data: Partial<Omit<Finishing, 'id' | 'created_at'>>) => updateRecord('finishings', id, data, setFinishings, 'Finishing berhasil diperbarui.');
-    const deleteFinishing = async (id: number) => deleteRecord('finishings', id, setFinishings, 'Finishing berhasil dihapus.');
+    const addFinishing = async (data: Omit<Finishing, 'id' | 'created_at'>) => createRecord('finishings', data, 'Finishing berhasil ditambahkan.');
+    const updateFinishing = async (id: number, data: Partial<Omit<Finishing, 'id' | 'created_at'>>) => updateRecord('finishings', id, data, 'Finishing berhasil diperbarui.');
+    const deleteFinishing = async (id: number) => deleteRecord('finishings', id, 'Finishing berhasil dihapus.');
 
     // --- Complex Logic: Stock Movements, Expenses, Orders, Payments ---
 
@@ -346,125 +411,70 @@ export const useAppData = (user: User | undefined) => {
         const { error: moveError } = await supabase.from('stock_movements').insert(data);
         if (moveError) { addToast(`Gagal mencatat pergerakan stok: ${moveError.message}`, 'error'); throw moveError; }
         
-        // Update stock_qty on bahan table
         const bahan = bahanList.find(b => b.id === data.bahan_id);
         const currentStock = bahan?.stock_qty || 0;
         const newStock = data.type === 'in' ? currentStock + data.quantity : currentStock - data.quantity;
         
         const { error: updateError } = await supabase.from('bahan').update({ stock_qty: newStock }).eq('id', data.bahan_id);
         if (updateError) { addToast(`Gagal update stok: ${updateError.message}`, 'error'); throw updateError; }
-        
-        // Manually update local state to reflect changes immediately
-        setBahanList(prev => prev.map(b => b.id === data.bahan_id ? { ...b, stock_qty: newStock } : b));
-        
-        // Refetch movements to keep history in sync
-        const { data: newMovements, error: fetchError } = await supabase.from('stock_movements').select('*');
-        if (fetchError) console.error("Could not refetch stock movements");
-        else setStockMovements(newMovements || []);
     };
 
     const updateBahanStock = async (bahanId: number, newStockQty: number, notes: string) => {
-        // 1. Get current stock from state to calculate difference
         const bahan = bahanList.find(b => b.id === bahanId);
-        if (!bahan) {
-            addToast(`Bahan tidak ditemukan.`, 'error');
-            throw new Error('Bahan not found');
-        }
+        if (!bahan) throw new Error('Bahan not found');
         const currentStock = bahan.stock_qty || 0;
         const difference = newStockQty - currentStock;
     
-        if (Math.abs(difference) < 0.001) {
-            return;
-        }
+        if (Math.abs(difference) < 0.001) return;
     
-        // 2. Create stock movement record
         const movementData: Omit<StockMovement, 'id' | 'created_at'> = {
-            bahan_id: bahanId,
-            type: difference > 0 ? 'in' : 'out',
-            quantity: Math.abs(difference),
-            supplier_id: null,
-            notes: notes,
+            bahan_id: bahanId, type: difference > 0 ? 'in' : 'out', quantity: Math.abs(difference), supplier_id: null, notes: notes,
         };
         const { error: moveError } = await supabase.from('stock_movements').insert(movementData);
-        if (moveError) {
-            addToast(`Gagal mencatat penyesuaian stok: ${moveError.message}`, 'error');
-            throw moveError;
-        }
+        if (moveError) throw moveError;
     
-        // 3. Update stock_qty on bahan table
-        const { data: updatedBahan, error: updateError } = await supabase.from('bahan').update({ stock_qty: newStockQty }).eq('id', bahanId).select().single();
-        if (updateError) {
-            addToast(`Gagal update stok: ${updateError.message}`, 'error');
-            // TODO: Ideally, roll back the stock_movement insert here.
-            throw updateError;
-        }
-        
-        // 4. Update local state
-        if (updatedBahan) {
-            setBahanList(prev => prev.map(b => b.id === bahanId ? updatedBahan : b));
-        }
-        
-        // Refetch all movements to ensure consistency
-        const { data: newMovements } = await supabase.from('stock_movements').select('*');
-        if (newMovements) setStockMovements(newMovements);
+        const { error: updateError } = await supabase.from('bahan').update({ stock_qty: newStockQty }).eq('id', bahanId);
+        if (updateError) throw updateError;
     };
 
     const addExpense = async (data: Omit<Expense, 'id' | 'created_at'>) => {
-        await createRecord('expenses', data, setExpenses, 'Pengeluaran berhasil ditambahkan.');
+        await createRecord('expenses', data, 'Pengeluaran berhasil ditambahkan.');
         if (data.jenis_pengeluaran === 'Bahan' && data.bahan_id && data.qty > 0) {
             await addStockMovement({
-                bahan_id: data.bahan_id,
-                type: 'in',
-                quantity: data.qty,
-                supplier_id: data.supplier_id,
-                notes: `Pembelian: ${data.keterangan || 'N/A'}`
+                bahan_id: data.bahan_id, type: 'in', quantity: data.qty, supplier_id: data.supplier_id, notes: `Pembelian: ${data.keterangan || 'N/A'}`
             }, true);
             addToast('Stok bahan berhasil ditambahkan.', 'success');
         }
     };
-    const updateExpense = async (id: number, data: Partial<Omit<Expense, 'id' | 'created_at'>>) => updateRecord('expenses', id, data, setExpenses, 'Pengeluaran berhasil diperbarui.');
-    const deleteExpense = async (id: number) => deleteRecord('expenses', id, setExpenses, 'Pengeluaran berhasil dihapus.');
+    const updateExpense = async (id: number, data: Partial<Omit<Expense, 'id' | 'created_at'>>) => updateRecord('expenses', id, data, 'Pengeluaran berhasil diperbarui.');
+    const deleteExpense = async (id: number) => deleteRecord('expenses', id, 'Pengeluaran berhasil dihapus.');
 
     const updateNotaSetting = async (settings: NotaSetting) => {
         const updates = [
             supabase.from('settings').update({ value: settings.prefix }).eq('key', 'nota_prefix'),
             supabase.from('settings').update({ value: settings.start_number_str }).eq('key', 'nota_last_number')
         ];
-
         const [prefixResult, numberResult] = await Promise.all(updates);
-
         if (prefixResult.error || numberResult.error) {
             const errorMessage = prefixResult.error?.message || numberResult.error?.message;
-            addToast(`Gagal update pengaturan nota: ${errorMessage}`, 'error');
-            return;
+            addToast(`Gagal update pengaturan nota: ${errorMessage}`, 'error'); return;
         }
-
-        setNotaSetting(settings);
-        addToast('Pengaturan nota berhasil diperbarui.', 'success');
+        setNotaSetting(settings); addToast('Pengaturan nota berhasil diperbarui.', 'success');
     };
     
-    // --- Dynamic Assets Calculation ---
     const dynamicAssets = useMemo(() => {
         const totalRevenue = orders.flatMap(o => o.payments).reduce((sum, p) => sum + p.amount, 0);
         const totalExpenses = expenses.reduce((sum, exp) => sum + (exp.harga * exp.qty), 0);
         const netProfit = totalRevenue - totalExpenses;
-
         const labaBersihAsset: Asset = {
-            id: -1, // Use a special ID for dynamic assets
-            created_at: new Date().toISOString(),
-            name: 'Laba Bersih (Kas)',
-            category: 'Aset Lancar',
-            purchase_price: netProfit,
-            purchase_date: new Date().toISOString().split('T')[0],
-            status: 'Baik',
-            is_dynamic: true,
+            id: -1, created_at: new Date().toISOString(), name: 'Laba Bersih (Kas)', category: 'Aset Lancar',
+            purchase_price: netProfit, purchase_date: new Date().toISOString().split('T')[0], status: 'Baik', is_dynamic: true,
         };
         return [labaBersihAsset];
     }, [orders, expenses]);
     const allAssets = useMemo(() => [...dynamicAssets, ...assets].sort((a,b) => (b.id) - (a.id)), [dynamicAssets, assets]);
 
     const addOrder = async (orderData: AddOrderPayload) => {
-        // 1. Get last order number from settings
         const { data: settingData, error: settingError } = await supabase.from('settings').select('value').eq('key', 'nota_last_number').single();
         if (settingError || !settingData) { addToast('Gagal mendapatkan nomor nota.', 'error'); throw settingError; }
         
@@ -475,145 +485,52 @@ export const useAppData = (user: User | undefined) => {
         const newPaddedNumberStr = String(nextNumber).padStart(padding, '0');
         const newNotaNumber = `${notaSetting.prefix}-${newPaddedNumberStr}`;
         
-        // 2. Insert order
         const { order_items, ...orderPayload } = orderData;
         const newOrderPayload: Tables['orders']['Insert'] = { ...orderPayload, no_nota: newNotaNumber };
         const { data: newOrder, error: orderError } = await supabase.from('orders').insert(newOrderPayload).select().single();
         if (orderError) { addToast(`Gagal membuat order: ${orderError.message}`, 'error'); throw orderError; }
         
-        // 3. Insert order_items
         const itemsPayload: Tables['order_items']['Insert'][] = order_items.map((item) => ({...item, order_id: newOrder.id}));
         const { error: itemsError } = await supabase.from('order_items').insert(itemsPayload);
         if (itemsError) { addToast(`Gagal menyimpan item order: ${itemsError.message}`, 'error'); throw itemsError; }
         
-        // 4. Update last number in settings WITH PADDING
         await supabase.from('settings').update({ value: newPaddedNumberStr }).eq('key', 'nota_last_number');
-        
-        // 5. Refetch order to display it with items
-        try {
-            const fullOrder = await fetchFullOrder(newOrder.id);
-            if (!fullOrder) {
-                throw new Error('Order baru dibuat tapi gagal diambil kembali dari database.');
-            }
-            setOrders(prev => [...prev, fullOrder]);
-            setNotaSetting(prev => ({ ...prev, start_number_str: newPaddedNumberStr }));
-            addToast(`Order ${newNotaNumber} berhasil ditambahkan.`, 'success');
-        } catch (fetchError: any) {
-            addToast(`Order dibuat, tapi gagal memuat ulang: ${fetchError.message}`, 'error');
-        }
+        setNotaSetting(prev => ({ ...prev, start_number_str: newPaddedNumberStr }));
+        // Let realtime handle the UI update for the new order
     };
 
     const updateOrder = async (id: number, orderData: UpdateOrderPayload) => {
-        const originalOrder = orders.find(o => o.id === id);
-        if (!originalOrder) {
-            const err = new Error('Order tidak ditemukan untuk diedit.');
-            addToast(err.message, 'error');
-            throw err;
-        }
-
-        if (originalOrder.status_pesanan !== 'Pending') {
-            const err = new Error('Hanya order dengan status "Pending" yang bisa diedit.');
-            addToast(err.message, 'error');
-            throw err;
-        }
-
-        addToast(`Memproses edit untuk ${originalOrder.no_nota}...`, 'info');
-        const originalNota = originalOrder.no_nota;
-
-        // Step 1: Delete the old order from DB.
-        const { error: deleteError } = await supabase.from('orders').delete().eq('id', id);
-        if (deleteError) {
-            addToast(`Gagal menghapus order lama: ${deleteError.message}`, 'error');
-            throw deleteError;
-        }
+        // This function is complex with realtime. The logic to delete and recreate could cause race conditions.
+        // A simpler update approach is better with realtime.
+        const { order_items, ...orderPayload } = orderData;
         
-        // Step 2: Temporarily remove from local state to avoid UI flashes.
-        setOrders(prev => prev.filter(o => o.id !== id));
-        
-        // Step 3: Re-create the order.
-        try {
-            const { order_items, ...orderPayload } = orderData;
+        // Update the main order table
+        if (Object.keys(orderPayload).length > 0) {
+            const { error } = await supabase.from('orders').update(orderPayload).eq('id', id);
+            if (error) { addToast(`Gagal update data order: ${error.message}`, 'error'); throw error; }
+        }
+
+        // Update, add, delete order items
+        if (order_items) {
+            const oldOrder = orders.find(o => o.id === id);
+            const oldItemIds = oldOrder?.order_items.map(i => i.id) || [];
             
-            const newOrderDataForInsert: Omit<OrderRow, 'id' | 'created_at'> = {
-                no_nota: originalNota,
-                tanggal: orderData.tanggal ?? originalOrder.tanggal,
-                pelanggan_id: orderData.pelanggan_id ?? originalOrder.pelanggan_id,
-                pelaksana_id: originalOrder.pelaksana_id,
-                status_pembayaran: originalOrder.status_pembayaran,
-                status_pesanan: originalOrder.status_pesanan,
-            };
+            const toUpdate = order_items.filter(item => item.id && oldItemIds.includes(item.id));
+            const toInsert = order_items.filter(item => !item.id);
+            const toDeleteIds = oldItemIds.filter(oldId => !order_items.some(item => item.id === oldId));
 
-            const { data: newOrder, error: orderError } = await supabase
-                .from('orders')
-                .insert(newOrderDataForInsert)
-                .select()
-                .single();
-
-            if (orderError) throw orderError;
-            if (!newOrder) throw new Error("Gagal membuat baris order baru.");
-
-            // Step 4: Insert new order items.
-            if (order_items && order_items.length > 0) {
-                const itemsPayload = order_items.map(({ id: itemId, ...item }) => ({
-                    ...item,
-                    order_id: newOrder.id,
-                }));
-                const { error: itemsError } = await supabase.from('order_items').insert(itemsPayload);
-                if (itemsError) throw itemsError;
-            }
-
-            // Step 5: Refetch the complete new order and update state.
-            const fullNewOrder = await fetchFullOrder(newOrder.id);
-            if (fullNewOrder) {
-                setOrders(prev => [...prev, fullNewOrder]);
-                addToast(`Order ${originalNota} berhasil diperbarui.`, 'success');
-            } else {
-                throw new Error("Gagal memuat ulang order yang telah diperbarui.");
-            }
-        } catch (error: any) {
-            addToast(`Gagal membuat order baru setelah edit: ${error.message}. Order asli mungkin telah terhapus.`, 'error');
-            throw error;
+            if (toUpdate.length > 0) await supabase.from('order_items').upsert(toUpdate);
+            if (toInsert.length > 0) await supabase.from('order_items').insert(toInsert.map(({id: itemId, ...rest}) => ({...rest, order_id: id})));
+            if (toDeleteIds.length > 0) await supabase.from('order_items').delete().in('id', toDeleteIds);
         }
+        // Realtime will catch these changes and trigger a full order refetch
     };
 
-    const deleteOrder = async (id: number) => deleteRecord('orders', id, setOrders, 'Order berhasil dihapus.');
+    const deleteOrder = async (id: number) => deleteRecord('orders', id, 'Order berhasil dihapus.');
 
     const addPaymentToOrder = async (orderId: number, paymentData: Omit<Payment, 'id' | 'created_at' | 'order_id'>) => {
-        const { data: newPayment, error } = await supabase
-            .from('payments')
-            .insert({ ...paymentData, order_id: orderId })
-            .select()
-            .single();
-
-        if (error) {
-            addToast(`Gagal menambah pembayaran: ${error.message}`, 'error');
-            throw error;
-        }
-
-        if (newPayment) {
-            addToast('Pembayaran berhasil ditambahkan.', 'success');
-
-            const order = orders.find(o => o.id === orderId);
-            if (order) {
-                const totalPaidInCents = Math.round((order.payments.reduce((sum, p) => sum + p.amount, 0) + newPayment.amount) * 100);
-                const totalBillInCents = Math.round(calculateOrderTotal(order, customers, bahanList) * 100);
-                
-                if (totalPaidInCents >= totalBillInCents) {
-                    await supabase.from('orders').update({ status_pembayaran: 'Lunas' }).eq('id', orderId);
-                }
-            }
-
-            try {
-                const updatedOrder = await fetchFullOrder(orderId);
-                if (updatedOrder) {
-                    setOrders(prev => prev.map(o => o.id === orderId ? updatedOrder : o));
-                } else {
-                    throw new Error("Order data could not be refreshed after payment.");
-                }
-            } catch (fetchError: any) {
-                addToast(`Pembayaran berhasil, tapi gagal sinkronisasi: ${fetchError.message}. Muat ulang halaman mungkin diperlukan.`, 'error');
-            }
-        }
+        const { error } = await supabase.from('payments').insert({ ...paymentData, order_id: orderId });
+        if (error) { addToast(`Gagal menambah pembayaran: ${error.message}`, 'error'); throw error; }
     };
 
     const addBulkPaymentToOrders = async (
@@ -625,91 +542,39 @@ export const useAppData = (user: User | undefined) => {
         const sortedOrders = [...ordersToPay].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
     
         const paymentInserts: Tables['payments']['Insert'][] = [];
-        const orderUpdatePayloads: { id: number; status_pembayaran: PaymentStatus }[] = [];
     
         for (const order of sortedOrders) {
             if (remainingPayment <= 0) break;
-    
             const totalBill = calculateOrderTotal(order, customers, bahanList);
             const totalPaid = order.payments.reduce((sum, p) => sum + p.amount, 0);
             const balanceDue = Math.max(0, totalBill - totalPaid);
-    
             if (balanceDue <= 0.01) continue;
-    
             const amountToPay = Math.min(remainingPayment, balanceDue);
-    
             paymentInserts.push({ ...paymentData, order_id: order.id, amount: amountToPay });
             remainingPayment -= amountToPay;
-    
-            if (amountToPay >= balanceDue - 0.01) {
-                orderUpdatePayloads.push({ id: order.id, status_pembayaran: 'Lunas' });
-            }
         }
     
-        if (paymentInserts.length === 0) {
-            addToast('Tidak ada pembayaran yang dapat diproses.', 'info');
-            return;
-        }
+        if (paymentInserts.length === 0) { addToast('Tidak ada pembayaran yang dapat diproses.', 'info'); return; }
     
         try {
             const { error: insertError } = await supabase.from('payments').insert(paymentInserts);
             if (insertError) throw insertError;
-    
-            if (orderUpdatePayloads.length > 0) {
-                const updatePromises = orderUpdatePayloads.map(update =>
-                    supabase.from('orders').update({ status_pembayaran: update.status_pembayaran }).eq('id', update.id)
-                );
-                await Promise.all(updatePromises);
-            }
-
-            // Refetch all affected data
-            const { data: allOrdersData, error: ordersFetchError } = await supabase.from('orders').select('*, order_items(*)');
-            const { data: allPaymentsData, error: paymentsFetchError } = await supabase.from('payments').select('*');
-
-            if (ordersFetchError || paymentsFetchError) {
-                throw new Error(ordersFetchError?.message || paymentsFetchError?.message);
-            }
-
-            const paymentsByOrderId = (allPaymentsData || []).reduce<Record<number, Payment[]>>((acc, p) => {
-                if (p.order_id) {
-                    if (!acc[p.order_id]) acc[p.order_id] = [];
-                    acc[p.order_id].push(p);
-                }
-                return acc;
-            }, {});
-
-            const allOrdersWithPayments = (allOrdersData || []).map(o => ({
-                ...o,
-                payments: paymentsByOrderId[o.id] || []
-            }));
-            setOrders(allOrdersWithPayments as Order[] || []);
             addToast(`${paymentInserts.length} pembayaran berhasil diproses.`, 'success');
-
         } catch (error: any) {
-            addToast(`Gagal memproses pembayaran: ${error.message}`, 'error');
-            throw error;
+            addToast(`Gagal memproses pembayaran: ${error.message}`, 'error'); throw error;
         }
     };
 
     const updateOrderStatus = async (orderId: number, status: OrderStatus, pelaksana_id: string | null = null) => {
         const fullOrder = orders.find(o => o.id === orderId);
-        if (!fullOrder) {
-            addToast('Order tidak ditemukan untuk update status.', 'error');
-            return;
-        }
+        if (!fullOrder) return;
     
         const payload: Tables['orders']['Update'] = { status_pesanan: status };
-        if (pelaksana_id !== null) {
-            payload.pelaksana_id = pelaksana_id === '' ? null : pelaksana_id;
-        }
+        if (pelaksana_id !== null) payload.pelaksana_id = pelaksana_id === '' ? null : pelaksana_id;
     
         const { error } = await supabase.from('orders').update(payload).eq('id', orderId);
-        if (error) {
-            addToast(`Gagal update status order: ${error.message}`, 'error');
-            return;
-        }
+        if (error) { addToast(`Gagal update status order: ${error.message}`, 'error'); return; }
     
-        // Deduct stock when moving from 'Pending' to 'Waiting'
         if (fullOrder.status_pesanan === 'Pending' && status === 'Waiting') {
             for (const item of fullOrder.order_items) {
                 const finishing = finishings.find(f => f.id === item.finishing_id);
@@ -718,21 +583,10 @@ export const useAppData = (user: User | undefined) => {
                 const totalPanjang = (item.panjang || 0) + panjang_tambahan;
                 const totalLebar = (item.lebar || 0) + lebar_tambahan;
                 const quantityToDeduct = (totalPanjang * totalLebar) * item.qty;
-    
-                if (quantityToDeduct > 0) {
-                    await addStockMovement({
-                        bahan_id: item.bahan_id,
-                        type: 'out',
-                        quantity: quantityToDeduct,
-                        supplier_id: null,
-                        notes: `Pemakaian untuk order ${fullOrder.no_nota}`,
-                    }, true);
-                }
+                if (quantityToDeduct > 0) await addStockMovement({ bahan_id: item.bahan_id, type: 'out', quantity: quantityToDeduct, supplier_id: null, notes: `Pemakaian untuk order ${fullOrder.no_nota}` }, true);
             }
             addToast(`Stok bahan untuk nota ${fullOrder.no_nota} telah dikurangi.`, 'info');
-        }
-        // Restore stock when moving from 'Waiting' or 'Proses' back to 'Pending'
-        else if (['Waiting', 'Proses'].includes(fullOrder.status_pesanan) && status === 'Pending') {
+        } else if (['Waiting', 'Proses'].includes(fullOrder.status_pesanan) && status === 'Pending') {
              for (const item of fullOrder.order_items) {
                 const finishing = finishings.find(f => f.id === item.finishing_id);
                 const panjang_tambahan = finishing?.panjang_tambahan || 0;
@@ -740,91 +594,27 @@ export const useAppData = (user: User | undefined) => {
                 const totalPanjang = (item.panjang || 0) + panjang_tambahan;
                 const totalLebar = (item.lebar || 0) + lebar_tambahan;
                 const quantityToRestore = (totalPanjang * totalLebar) * item.qty;
-    
-                if (quantityToRestore > 0) {
-                    await addStockMovement({
-                        bahan_id: item.bahan_id,
-                        type: 'in', // Restore stock
-                        quantity: quantityToRestore,
-                        supplier_id: null,
-                        notes: `Pembatalan proses untuk order ${fullOrder.no_nota}`,
-                    }, true);
-                }
+                if (quantityToRestore > 0) await addStockMovement({ bahan_id: item.bahan_id, type: 'in', quantity: quantityToRestore, supplier_id: null, notes: `Pembatalan proses untuk order ${fullOrder.no_nota}` }, true);
             }
             addToast(`Stok bahan untuk nota ${fullOrder.no_nota} telah dikembalikan.`, 'info');
-        }
-    
-        // Refetch the updated order to get the most accurate state
-        const updatedFullOrder = await fetchFullOrder(orderId);
-        if (updatedFullOrder) {
-            setOrders(prev => prev.map(o => o.id === orderId ? updatedFullOrder : o));
-            if (status !== 'Proses' && status !== 'Selesai') { // Avoid double toasts for automatic updates
-                addToast(`Status pesanan ${fullOrder.no_nota} diubah menjadi ${status}.`, 'success');
-            }
         }
     };
 
     const updateOrderItemStatus = async (orderId: number, itemId: number, status: ProductionStatus) => {
         const { error } = await supabase.from('order_items').update({ status_produksi: status }).eq('id', itemId);
-        if (error) {
-            addToast('Gagal update status item.', 'error');
-            return;
-        }
-
-        // Refetch to check overall status and update if necessary
-        const fullOrder = await fetchFullOrder(orderId);
-        if (fullOrder) {
-            // Check if this action triggers a main order status change
-            const anyItemProses = fullOrder.order_items.some(i => i.status_produksi === 'Proses');
-            const allItemsSelesai = fullOrder.order_items.every(i => i.status_produksi === 'Selesai');
-
-            let newStatus: OrderStatus | null = null;
-            if (allItemsSelesai && fullOrder.status_pesanan !== 'Selesai') {
-                newStatus = 'Selesai';
-            } else if (anyItemProses && fullOrder.status_pesanan === 'Waiting') {
-                newStatus = 'Proses';
-            }
-
-            if (newStatus) {
-                await updateOrderStatus(orderId, newStatus, null);
-                // The above function will refetch and update state, so we don't need to do it twice
-            } else {
-                // If main status doesn't change, just update the local state for the item
-                setOrders(prev => prev.map(o => o.id === orderId ? fullOrder : o));
-            }
-        }
+        if (error) { addToast('Gagal update status item.', 'error'); return; }
     };
     
     const updateYouTubePlaylist = async (playlist: YouTubePlaylistItem[]) => {
       const { data: existing, error: checkError } = await supabase.from('display_settings').select('id').eq('id', 1).maybeSingle();
-
-      let result;
+      if (checkError) throw checkError;
       const payload: Tables['display_settings']['Update'] = { youtube_url: playlist };
-
-      if (checkError) {
-          addToast(`Gagal memeriksa pengaturan: ${checkError.message}`, 'error');
-          throw checkError;
-      }
-      if (existing) {
-          result = await supabase.from('display_settings').update(payload).eq('id', 1).select().single();
-      } else {
-          result = await supabase.from('display_settings').insert(payload).select().single();
-      }
-      
-      const { data, error } = result;
-
-      if (error) {
-          addToast(`Gagal menyimpan playlist: ${error.message}`, 'error');
-          throw error;
-      }
-
-      if (data) {
-          const newSettings: DisplaySettings = { ...data, youtube_url: playlist };
-          setDisplaySettings(newSettings);
-          addToast('Playlist YouTube berhasil diperbarui.', 'success');
-      }
+      const { error } = existing 
+          ? await supabase.from('display_settings').update(payload).eq('id', 1) 
+          : await supabase.from('display_settings').insert(payload);
+      if (error) { addToast(`Gagal menyimpan playlist: ${error.message}`, 'error'); throw error; }
+      addToast('Playlist YouTube berhasil diperbarui.', 'success');
     };
-
 
     return {
         isDataLoaded,
@@ -832,6 +622,7 @@ export const useAppData = (user: User | undefined) => {
         customers, addCustomer, updateCustomer, deleteCustomer,
         bahanList, addBahan, updateBahan, deleteBahan,
         orders, addOrder, updateOrder, deleteOrder, addPaymentToOrder, addBulkPaymentToOrders, updateOrderStatus, updateOrderItemStatus,
+        loadMoreOrders, hasMoreOrders, isOrderLoading,
         expenses, addExpense, updateExpense, deleteExpense,
         banks, addBank, updateBank, deleteBank,
         assets: allAssets, addAsset, updateAsset, deleteAsset,

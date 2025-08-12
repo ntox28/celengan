@@ -9,20 +9,20 @@ import ArrowUpToLineIcon from '../icons/ArrowUpToLineIcon';
 interface YouTubePlaylistModalProps {
     isOpen: boolean;
     onClose: () => void;
-    settings: DisplaySettings | null;
+    playlistItems: YouTubePlaylistItem[];
     onSave: (playlist: YouTubePlaylistItem[]) => Promise<void>;
 }
 
-const YouTubePlaylistModal: React.FC<YouTubePlaylistModalProps> = ({ isOpen, onClose, settings, onSave }) => {
+const YouTubePlaylistModal: React.FC<YouTubePlaylistModalProps> = ({ isOpen, onClose, playlistItems, onSave }) => {
     const [playlist, setPlaylist] = useState<YouTubePlaylistItem[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const { addToast } = useToast();
 
     useEffect(() => {
-        if (isOpen && settings) {
-            setPlaylist(settings.youtube_url || []);
+        if (isOpen) {
+            setPlaylist(playlistItems);
         }
-    }, [isOpen, settings]);
+    }, [isOpen, playlistItems]);
 
     if (!isOpen) return null;
     
@@ -55,7 +55,6 @@ const YouTubePlaylistModal: React.FC<YouTubePlaylistModalProps> = ({ isOpen, onC
         setIsLoading(true);
         try {
             await onSave(playlist);
-            onClose();
         } catch (error) {
             // Toast is handled in onSave
         } finally {
