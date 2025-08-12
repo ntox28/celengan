@@ -38,7 +38,7 @@ const getStatusColor = (status: ProductionStatus) => {
     const colors: Record<ProductionStatus, string> = {
         'Belum Dikerjakan': 'bg-gray-100 text-gray-800 dark:bg-slate-600 dark:text-slate-200',
         'Proses': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300',
-        'Selesai': 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300',
+        'Ready': 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300',
     };
     return colors[status];
 };
@@ -64,8 +64,8 @@ const DashboardView: React.FC<DashboardViewProps> = ({ orders, customers, expens
         const todaysOrderItems = todaysOrders.flatMap(o => o.order_items);
         
         const totalOrdersToday = todaysOrders.length;
-        const itemsToProcessToday = todaysOrderItems.filter(item => item.status_produksi !== 'Selesai').length;
-        const itemsCompletedToday = todaysOrderItems.filter(item => item.status_produksi === 'Selesai').length;
+        const itemsToProcessToday = todaysOrderItems.filter(item => item.status_produksi !== 'Ready').length;
+        const itemsCompletedToday = todaysOrderItems.filter(item => item.status_produksi === 'Ready').length;
 
         const productionStatusToday = todaysOrderItems.reduce((acc, item) => {
             acc[item.status_produksi] = (acc[item.status_produksi] || 0) + 1;
@@ -90,7 +90,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ orders, customers, expens
     }).reverse();
 
     const PIE_COLORS = {
-        'Selesai': '#22c55e', // green-500
+        'Ready': '#22c55e', // green-500
         'Proses': '#f59e0b', // amber-500
         'Belum Dikerjakan': theme === 'dark' ? '#475569' : '#94a3b8', // slate-600 / slate-400
     };

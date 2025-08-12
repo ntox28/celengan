@@ -12,6 +12,8 @@ import FinishingIcon from '../icons/FinishingIcon';
 import FinishingManagement from './FinishingManagement';
 import StockOpnameManagement from '../stock/StockOpnameManagement';
 import ClipboardListIcon from '../icons/ClipboardListIcon';
+import BellIcon from '../icons/BellIcon';
+import NotificationSettings from './NotificationSettings';
 
 interface SettingsProps {
     banks: Bank[];
@@ -43,7 +45,8 @@ const settingsTabs = [
     { name: 'Bahan', icon: IngredientsIcon, component: BahanManagement, props: ['bahanList', 'addBahan', 'updateBahan', 'deleteBahan'] },
     { name: 'Stock Opname', icon: ClipboardListIcon, component: StockOpnameManagement, props: ['bahanList', 'updateBahanStock'] },
     { name: 'Bank', icon: BankIcon, component: BankManagement, props: ['banks', 'addBank', 'updateBank', 'deleteBank'] },
-    { name: 'Finishing', icon: FinishingIcon, component: FinishingManagement, props: ['finishings', 'addFinishing', 'updateFinishing', 'deleteFinishing'] }
+    { name: 'Finishing', icon: FinishingIcon, component: FinishingManagement, props: ['finishings', 'addFinishing', 'updateFinishing', 'deleteFinishing'] },
+    { name: 'Notifikasi', icon: BellIcon, component: NotificationSettings, props: [] },
 ];
 
 const SettingsManagement: React.FC<SettingsProps> = (props) => {

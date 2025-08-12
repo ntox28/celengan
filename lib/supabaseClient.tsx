@@ -26,9 +26,9 @@ export type Json =
 
 export type CustomerLevel = 'End Customer' | 'Retail' | 'Grosir' | 'Reseller' | 'Corporate';
 export type EmployeePosition = 'Admin' | 'Kasir' | 'Office' | 'Produksi';
-export type ProductionStatus = 'Belum Dikerjakan' | 'Proses' | 'Selesai';
+export type ProductionStatus = 'Belum Dikerjakan' | 'Proses' | 'Ready';
 export type PaymentStatus = 'Belum Lunas' | 'Lunas';
-export type OrderStatus = 'Pending' | 'Waiting' | 'Proses' | 'Selesai';
+export type OrderStatus = 'Pending' | 'Waiting' | 'Proses' | 'Ready' | 'Delivered';
 export type AssetCategory = 'Aset Lancar' | 'Aset Tetap' | 'Aset Tidak Terwujud' | 'Aset Lainnya';
 export type AssetStatus = 'Baik' | 'Perbaikan' | 'Rusak' | 'Dijual';
 export type DebtCategory = 'Pinjaman Bank' | 'Kredit Aset' | 'Hutang Pemasok' | 'Lainnya';
@@ -287,7 +287,7 @@ export interface Database {
       settings: {
         Row: { key: string; value: string; };
         Insert: { key: string; value: string; };
-        Update: { value?: string; };
+        Update: { key?: string; value?: string; };
       }
     };
     Views: {

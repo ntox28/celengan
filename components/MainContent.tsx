@@ -17,6 +17,7 @@ import YouTubeIcon from './icons/YouTubeIcon';
 import YouTubePlaylistModal from './settings/YouTubePlaylistModal';
 import PlusIcon from './icons/PlusIcon';
 import { useToast } from '../hooks/useToast';
+import WarehouseManagement from './warehouse/WarehouseManagement';
 
 type MainContentProps = {
   user: AuthUser;
@@ -171,6 +172,15 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     updateOrderItemStatus={updateOrderItemStatus}
                     finishings={finishings}
                 />;
+      case 'Gudang Produksi':
+        return <WarehouseManagement
+            orders={orders}
+            customers={customers}
+            bahanList={bahanList}
+            finishings={finishings}
+            employees={employees}
+            updateOrderStatus={updateOrderStatus}
+        />;
       case 'Transaksi':
         return <TransactionManagement 
                     orders={orders} 

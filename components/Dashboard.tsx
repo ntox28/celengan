@@ -17,6 +17,7 @@ import ToastContainer from './toasts/ToastContainer';
 import { useAppData } from '../hooks/useAppData';
 import SupplierIcon from './icons/SupplierIcon';
 import StockIcon from './icons/StockIcon';
+import WarehouseIcon from './icons/WarehouseIcon';
 
 type DashboardProps = {
   user: AuthUser;
@@ -28,6 +29,7 @@ const allMenuItems = [
   { name: 'Keuangan', icon: DocumentReportIcon, roles: ['Admin'] },
   { name: 'Order', icon: OrderIcon, roles: ['Admin', 'Kasir', 'Office'] },
   { name: 'Produksi', icon: ProductionIcon, roles: ['Admin', 'Kasir', 'Produksi', 'Office'] },
+  { name: 'Gudang Produksi', icon: WarehouseIcon, roles: ['Admin', 'Kasir', 'Produksi', 'Office'] },
   { name: 'Transaksi', icon: TransactionIcon, roles: ['Admin', 'Kasir'] },
   { name: 'Pengeluaran', icon: ExpenseIcon, roles: ['Admin', 'Kasir'] },
   { name: 'Stock Bahan', icon: StockIcon, roles: ['Admin', 'Kasir'] },

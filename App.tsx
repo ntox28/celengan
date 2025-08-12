@@ -5,6 +5,7 @@ import { Session, supabase } from './lib/supabaseClient';
 import { ToastProvider, useToast } from './hooks/useToast';
 import { ThemeProvider } from './hooks/useTheme';
 import { useAppData } from './hooks/useAppData';
+import { NotificationSettingsProvider } from './hooks/useNotificationSettings';
 
 const AppContent: React.FC = () => {
     const [session, setSession] = useState<Session | null>(null);
@@ -93,9 +94,11 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <ThemeProvider>
+      <NotificationSettingsProvider>
         <ToastProvider>
             <AppContent />
         </ToastProvider>
+      </NotificationSettingsProvider>
     </ThemeProvider>
   );
 };

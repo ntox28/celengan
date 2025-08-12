@@ -24,9 +24,12 @@ const LoginComponent: React.FC<LoginComponentProps> = ({ onLogin }) => {
             await onLogin(email, password);
             // Success toast is handled in the parent component
         } catch (err: any) {
-            const errorMessage = 'Email atau password yang Anda masukkan salah.';
-            setError(errorMessage);
-            addToast('Login gagal. Periksa kembali kredensial Anda.', 'error');
+            let displayMessage = 'Email atau password yang Anda masukkan salah.';
+            if (err.message && err.message.toLowerCase().includes('email not confirmed')) {
+                displayMessage = 'Email Anda belum terverifikasi. Silakan cek email untuk link aktivasi.';
+            }
+            setError(displayMessage);
+            addToast(displayMessage, 'error');
         } finally {
             setIsLoading(false);
         }

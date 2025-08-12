@@ -652,8 +652,10 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
                                             <td data-label="Pelanggan" className="px-6 py-4">{getCustomerName(order.pelanggan_id)}</td>
                                             <td data-label="Status Pesanan" className="px-6 py-4 text-center">
                                                 <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                                    order.status_pesanan === 'Selesai'
+                                                    order.status_pesanan === 'Delivered'
                                                         ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300'
+                                                        : order.status_pesanan === 'Ready'
+                                                        ? 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/50 dark:text-cyan-300'
                                                         : order.status_pesanan === 'Proses'
                                                         ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300'
                                                         : order.status_pesanan === 'Waiting'

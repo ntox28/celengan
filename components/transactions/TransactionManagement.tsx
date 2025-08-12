@@ -46,7 +46,8 @@ const getPaymentStatusColor = (status: PaymentStatus) => {
 
 const getOrderStatusColor = (status: OrderStatus) => {
     const colors: Record<OrderStatus, string> = {
-        'Selesai': 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300',
+        'Delivered': 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300',
+        'Ready': 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/50 dark:text-cyan-300',
         'Proses': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300',
         'Waiting': 'bg-gray-100 text-gray-800 dark:bg-slate-600 dark:text-slate-200',
         'Pending': 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'
@@ -139,7 +140,7 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
     const transactions = useMemo(() => {
         return orders
             .filter(order => {
-                if (!['Waiting', 'Proses', 'Selesai'].includes(order.status_pesanan)) return false;
+                if (!['Waiting', 'Proses', 'Ready', 'Delivered'].includes(order.status_pesanan)) return false;
 
                 const customerMatch = filters.customerId === 'all' || order.pelanggan_id === Number(filters.customerId);
                 const startDateMatch = !filters.startDate || order.tanggal >= filters.startDate;

@@ -29,7 +29,7 @@ const getStatusColor = (status: ProductionStatus) => {
     const colors: Record<ProductionStatus, string> = {
         'Belum Dikerjakan': 'bg-gray-100 text-gray-800 dark:bg-slate-600 dark:text-slate-200',
         'Proses': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300',
-        'Selesai': 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300',
+        'Ready': 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300',
     };
     return colors[status];
 };
@@ -50,7 +50,7 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({ orders, cus
     const filteredOrders = useMemo(() => {
         return orders
             .filter(order => {
-                if (!['Waiting', 'Proses'].includes(order.status_pesanan)) return false;
+                if (!['Waiting', 'Proses', 'Ready'].includes(order.status_pesanan)) return false;
                 
                 const customerMatch = filters.customerId === 'all' || order.pelanggan_id === Number(filters.customerId);
                 const startDateMatch = !filters.startDate || order.tanggal >= filters.startDate;
@@ -84,7 +84,7 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({ orders, cus
     const productionStatusOptions = [
         { value: 'Belum Dikerjakan', label: 'Belum Dikerjakan' },
         { value: 'Proses', label: 'Proses' },
-        { value: 'Selesai', label: 'Selesai' },
+        { value: 'Ready', label: 'Ready' },
     ];
 
     const getCustomerName = (id: number | '' | undefined) => {
@@ -121,10 +121,6 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({ orders, cus
 
     const handleStatusChange = (orderId: number, itemId: number, newStatus: ProductionStatus) => {
         updateOrderItemStatus(orderId, itemId, newStatus);
-        const order = orders.find(o => o.id === orderId);
-        if(order) {
-           addToast(`Status item untuk Nota ${order.no_nota} telah diubah.`, 'info');
-        }
     };
 
     const getOverallOrderStatus = (order: Order): ProductionStatus => {
@@ -133,8 +129,8 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({ orders, cus
         }
         const statuses = order.order_items.map(item => item.status_produksi);
 
-        if (statuses.every(s => s === 'Selesai')) {
-            return 'Selesai';
+        if (statuses.every(s => s === 'Ready')) {
+            return 'Ready';
         }
         if (statuses.some(s => s === 'Proses')) {
             return 'Proses';
@@ -171,7 +167,7 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({ orders, cus
                         {currentOrders.map((order) => {
                            const overallStatus = getOverallOrderStatus(order);
                            const notaBadgeColor = 
-                                overallStatus === 'Selesai' ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' :
+                                overallStatus === 'Ready' ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' :
                                 overallStatus === 'Proses' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300' :
                                 'bg-gray-100 text-gray-800 dark:bg-slate-600 dark:text-slate-200';
 
@@ -256,17 +252,17 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({ orders, cus
                                                                     <td className="px-4 py-3 text-center space-x-2">
                                                                         <button 
                                                                             onClick={() => handleStatusChange(order.id, item.id, 'Proses')}
-                                                                            disabled={item.status_produksi === 'Proses' || item.status_produksi === 'Selesai'}
+                                                                            disabled={item.status_produksi === 'Proses' || item.status_produksi === 'Ready'}
                                                                             className="px-3 py-1 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-md hover:bg-yellow-200 dark:bg-yellow-900/50 dark:text-yellow-300 dark:hover:bg-yellow-900/70 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed dark:disabled:bg-slate-600 dark:disabled:text-slate-400 transition-colors"
                                                                         >
                                                                             Proses
                                                                         </button>
                                                                         <button 
-                                                                            onClick={() => handleStatusChange(order.id, item.id, 'Selesai')}
-                                                                            disabled={item.status_produksi === 'Selesai'}
+                                                                            onClick={() => handleStatusChange(order.id, item.id, 'Ready')}
+                                                                            disabled={item.status_produksi === 'Ready'}
                                                                             className="px-3 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-md hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 dark:hover:bg-green-900/70 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed dark:disabled:bg-slate-600 dark:disabled:text-slate-400 transition-colors"
                                                                         >
-                                                                            Selesai
+                                                                            Ready
                                                                         </button>
                                                                     </td>
                                                                 </tr>
