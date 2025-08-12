@@ -50,8 +50,9 @@ const Struk = forwardRef<HTMLDivElement, StrukProps>(
     <div ref={ref} className="bg-white text-black font-sans text-[10px] leading-tight uppercase">
       {/* Header */}
       <div className="text-center" style={{ paddingTop: '4mm', paddingBottom: '2mm' }}>
+        <div className="font-bold">---------- ULAS KAMI ----------</div>
   <img 
-    src="https://xkvgflhjcnkythytbkuj.supabase.co/storage/v1/object/public/publik/logo%2078mm%20aja.png" 
+    src="https://xkvgflhjcnkythytbkuj.supabase.co/storage/v1/object/public/publik/maps%20nala%20media.svg" 
     alt="Logo NALAMEDIA" 
     style={{ 
       width: '54mm',       // sedikit kecil dari sebelumnya (56mm)
@@ -130,11 +131,26 @@ const Struk = forwardRef<HTMLDivElement, StrukProps>(
       <div className="font-bold text-sm">Sisa: {formatCurrency(totalTagihan - totalPaid)}</div>
 
       <hr className="border-dashed border-black my-2" />
+      
+      <div className="text-center font-bold">Pembayaran Via Transfer</div>
       <div className="text-center text-[9px] space-y-0.5 pt-1">
-        <p>Mohon barang dicek kembali.</p>
-        <p>Komplain 1x24 Jam.</p>
-        <p className="font-bold">Terima Kasih!</p>
+        <div>BRI: 6707-01-02-8864-537</div>
+        <div>BCA: 0154-361801</div>        
+        <div>BPD JATENG: 3142-069325</div>
+        <div className="font-bold">a/n Ariska Prima Diastari</div>
       </div>
+      <hr className="border-dashed border-black my-2" />
+
+      <div className="text-center text-[9px] space-y-0.5 pt-1">
+        <div className="font-bold">PERHATIAN</div>
+        <div>Mohon barang</div>
+        <div>dicek terlebih dahulu</div>
+        <div className="font-bold">Komplain lebih dari</div>
+        <div className="font-bold">1 hari tidak kami layani</div>
+      </div>
+      <div className="text-center" style={{ paddingTop: '4mm', paddingBottom: '2mm' }}>
+        <div className="font-bold">--------- Terima Kasih ---------</div>
+        </div>
     </div>
   );
 });

@@ -38,7 +38,7 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({ orders, cus
     const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const { addToast } = useToast();
-    const ITEMS_PER_PAGE = 10;
+    const ITEMS_PER_PAGE = 8;
     
     const [filters, setFilters] = useState({
         customerId: 'all',

@@ -285,7 +285,33 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
 
         if (printWindow) {
             printWindow.document.write('<html><head><title>Cetak Nota</title>');
-            printWindow.document.write(`<style>@page { margin: 10mm; } body { font-family: sans-serif; font-size: 10pt; color: #000; } .nota-dot-matrix { width: 100%; } .nota-header, .nota-footer { text-align: center; } .company-name { font-size: 14pt; font-weight: bold; margin-bottom: 5px; } .nota-info, .summary-row { display: flex; justify-content: space-between; margin: 2px 0; } hr.separator { border: none; border-top: 1px dashed black; margin: 10px 0; } hr.my-1 { margin-top: 4px; margin-bottom: 4px; } .nota-summary { margin-top: 10px; } .summary-row.total { font-weight: bold; margin-top: 5px; padding-top: 5px; border-top: 1px solid black; } .nota-footer { margin-top: 20px; } .flex { display: flex; } .font-bold { font-weight: bold; } .items-start { align-items: flex-start; } .py-0\\.5 { padding-top: 2px; padding-bottom: 2px; } .pr-1 { padding-right: 4px; } .text-center { text-align: center; } .text-right { text-align: right; } .break-words { word-wrap: break-word; } .w-\\[10\\%\\] { width: 10%; } .w-\\[15\\%\\] { width: 15%; } .w-\\[20\\%\\] { width: 20%; } .w-\\[25\\%\\] { width: 25%; } .w-\\[30\\%\\] { width: 30%; } .w-\\[35\\%\\] { width: 35%; } .text-\\[9px\\] { font-size: 9px; } .italic { font-style: italic; }</style>`);
+            printWindow.document.write(`<style>
+                @page { margin: 10mm; } 
+                body { font-family: sans-serif; font-size: 10pt; color: #000; } 
+                .nota-dot-matrix { width: 100%; } 
+                .nota-header, .nota-footer { text-align: center; } 
+                .company-name { font-size: 14pt; font-weight: bold; margin-bottom: 5px; } 
+                .nota-info, 
+                .summary-row { display: flex; justify-content: space-between; margin: 2px 0; }
+                hr.separator { border: none; border-top: 1px dashed black; margin: 10px 0; } 
+                hr.my-1 { margin-top: 4px; margin-bottom: 4px; } 
+                .nota-summary { margin-top: 10px; } 
+                .summary-row.total { font-weight: bold; margin-top: 5px; padding-top: 5px; border-top: 1px solid black; } 
+                .nota-footer { margin-top: 20px; } .flex { display: flex; } 
+                .font-bold { font-weight: bold; } 
+                .items-start { align-items: flex-start; } 
+                .py-0\\.5 { padding-top: 2px; padding-bottom: 2px; } 
+                .pr-1 { padding-right: 4px; } .text-center { text-align: center; } 
+                .text-right { text-align: right; } 
+                .break-words { word-wrap: break-word; } 
+                .w-\\[10\\%\\] { width: 10%; } 
+                .w-\\[15\\%\\] { width: 15%; } 
+                .w-\\[20\\%\\] { width: 20%; } 
+                .w-\\[25\\%\\] { width: 25%; } 
+                .w-\\[30\\%\\] { width: 30%; } 
+                .w-\\[35\\%\\] { width: 35%; } 
+                .text-\\[9px\\] { font-size: 9px; } 
+                .italic { font-style: italic; }</style>`);
             printWindow.document.write('</head><body>');
             printWindow.document.write(printContents);
             printWindow.document.write('</body></html>');

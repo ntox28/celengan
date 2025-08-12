@@ -201,7 +201,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
     const [isFinishingModalOpen, setIsFinishingModalOpen] = useState(false);
     const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
     const { addToast } = useToast();
-    const ITEMS_PER_PAGE = 5;
+    const ITEMS_PER_PAGE = 10;
     
     const [printableContent, setPrintableContent] = useState<React.ReactNode | null>(null);
     const formRef = useRef<HTMLDivElement>(null);
