@@ -524,14 +524,31 @@ export const useAppData = (user: User | undefined) => {
     };
 
     const addPaymentToOrder = async (orderId: number, paymentData: Omit<Payment, 'id' | 'created_at' | 'order_id'>) => {
+        const order = orders.find(o => o.id === orderId);
+        if (!order) {
+            addToast('Order tidak ditemukan.', 'error');
+            return;
+        }
+    
         const newPayment = await createRecord('payments', { ...paymentData, order_id: orderId });
+    
+        const totalBill = calculateOrderTotal(order, customers, bahanList);
+        const existingPayments = order.payments || [];
+        const newTotalPaid = [...existingPayments, newPayment].reduce((sum, p) => sum + p.amount, 0);
+    
+        const newStatus: PaymentStatus = newTotalPaid >= totalBill ? 'Lunas' : 'Belum Lunas';
+    
+        if (order.status_pembayaran !== newStatus) {
+            await updateRecord('orders', orderId, { status_pembayaran: newStatus });
+        }
+    
         const fullOrder = await fetchFullOrder(orderId);
         if (fullOrder) {
              setOrders(prev => prev.map(o => o.id === orderId ? fullOrder : o));
              addToast(`Pembayaran ${formatCurrency(newPayment.amount)} berhasil ditambahkan.`, 'success');
         }
     };
-
+    
     const addBulkPaymentToOrders = async (
         paymentData: Omit<Payment, 'id' | 'created_at' | 'order_id' | 'amount'>,
         totalPaymentAmount: number,
@@ -542,6 +559,7 @@ export const useAppData = (user: User | undefined) => {
     
         const paymentInserts: Tables['payments']['Insert'][] = [];
         const affectedOrderIds = new Set<number>();
+        const newPaymentsByOrderId: Record<number, number> = {};
     
         for (const order of sortedOrders) {
             if (remainingPayment <= 0) break;
@@ -550,17 +568,43 @@ export const useAppData = (user: User | undefined) => {
             const balanceDue = Math.max(0, totalBill - totalPaid);
             if (balanceDue <= 0.01) continue;
             const amountToPay = Math.min(remainingPayment, balanceDue);
+            
             paymentInserts.push({ ...paymentData, order_id: order.id, amount: amountToPay });
             affectedOrderIds.add(order.id);
+            newPaymentsByOrderId[order.id] = (newPaymentsByOrderId[order.id] || 0) + amountToPay;
             remainingPayment -= amountToPay;
         }
     
-        if (paymentInserts.length === 0) { addToast('Tidak ada pembayaran yang dapat diproses.', 'info'); return; }
+        if (paymentInserts.length === 0) {
+            addToast('Tidak ada pembayaran yang dapat diproses.', 'info');
+            return;
+        }
     
         try {
             const { error: insertError } = await supabase.from('payments').insert(paymentInserts as any);
             if (insertError) throw insertError;
-
+    
+            const orderStatusUpdates = [];
+            for (const orderId of affectedOrderIds) {
+                const order = orders.find(o => o.id === orderId);
+                if (!order) continue;
+    
+                const totalBill = calculateOrderTotal(order, customers, bahanList);
+                const originalPaid = order.payments.reduce((sum, p) => sum + p.amount, 0);
+                const newPaymentAmount = newPaymentsByOrderId[orderId] || 0;
+                const newTotalPaid = originalPaid + newPaymentAmount;
+    
+                if (newTotalPaid >= totalBill && order.status_pembayaran !== 'Lunas') {
+                    orderStatusUpdates.push(
+                        supabase.from('orders').update({ status_pembayaran: 'Lunas' }).eq('id', orderId)
+                    );
+                }
+            }
+            
+            if (orderStatusUpdates.length > 0) {
+                await Promise.all(orderStatusUpdates);
+            }
+    
             const updatedOrders = await Promise.all(Array.from(affectedOrderIds).map(id => fetchFullOrder(id)));
             setOrders(prev => {
                 const newOrders = [...prev];
@@ -572,10 +616,11 @@ export const useAppData = (user: User | undefined) => {
                 });
                 return newOrders;
             });
-
+    
             addToast(`${paymentInserts.length} pembayaran berhasil diproses.`, 'success');
         } catch (error: any) {
-            addToast(`Gagal memproses pembayaran: ${error.message}`, 'error'); throw error;
+            addToast(`Gagal memproses pembayaran: ${error.message}`, 'error');
+            throw error;
         }
     };
 
