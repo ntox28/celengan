@@ -135,30 +135,7 @@ const Nota = forwardRef<HTMLDivElement, NotaProps>(({
             </div>
           );
         })}
-      </div>
-
-      {/* Riwayat Pembayaran */}
-      {order.payments?.length > 0 && (
-        <>
-          <hr className="separator" />
-          <div className="nota-payment-history mt-2">
-            <div className="font-bold">Riwayat Pembayaran:</div>
-            <div className="flex font-bold text-[9px]">
-              <div className="w-[35%]">Tanggal</div>
-              <div className="w-[35%]">Kasir</div>
-              <div className="w-[30%] text-right">Jumlah</div>
-            </div>
-            <hr className="my-1 border-dashed border-black" />
-            {order.payments.map((payment, index) => (
-              <div key={index} className="flex items-start py-0.5 text-[9px]">
-                <div className="w-[35%]">{formatDate(payment.payment_date)}</div>
-                <div className="w-[35%] capitalize">{getEmployeeNameByUserId(payment.kasir_id)}</div>
-                <div className="w-[30%] text-right">{formatCurrencyDotMatrix(payment.amount)}</div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
+      </div>     
 
       <hr className="separator" />
 

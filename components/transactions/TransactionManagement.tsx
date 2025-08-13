@@ -14,6 +14,7 @@ import Struk from './Struk';
 import ReceiptIcon from '../icons/ReceiptIcon';
 import { useToast } from '../../hooks/useToast';
 import TransactionReport from './TransactionReport';
+import NotaGambar from './NotaGambar';
 
 interface TransactionManagementProps {
     orders: Order[];
@@ -87,6 +88,7 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
     const [newBulkPaymentBankId, setNewBulkPaymentBankId] = useState<string>('cash');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const notaRef = useRef<HTMLDivElement>(null);
+    const notaGambarRef = useRef<HTMLDivElement>(null);
     const strukRef = useRef<HTMLDivElement>(null);
     const actionMenuRef = useRef<HTMLDivElement>(null);
     const [currentPage, setCurrentPage] = useState(1);
@@ -297,7 +299,7 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
         }
     
         const printContents = notaRef.current.innerHTML;
-        const printWindow = window.open('', '', 'height=800,width=800');
+        const printWindow = window.open('', '', 'height=800,width=1200');
 
         if (printWindow) {
             printWindow.document.write('<html><head><title>Cetak Nota</title>');
@@ -340,7 +342,7 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
     const handlePrintStruk = () => {
   const printContents = strukRef.current?.innerHTML;
   if(printContents) {
-    const printWindow = window.open('', '', 'height=600,width=400');
+    const printWindow = window.open('', '', 'height=800,width=1200');
     if (!printWindow) return;
 
     printWindow.document.write('<html><head><title>Cetak Struk</title>');
@@ -399,9 +401,9 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
 
     
     const handleSaveImage = () => {
-        if(notaRef.current && selectedOrder){
+        if(notaGambarRef.current && selectedOrder){
             addToast('Menyimpan nota sebagai gambar...', 'info');
-            html2canvas(notaRef.current, {scale: 2, backgroundColor: '#ffffff'}).then(canvas => {
+            html2canvas(notaGambarRef.current, {scale: 2, backgroundColor: '#ffffff'}).then(canvas => {
                 const link = document.createElement('a');
                 link.download = `nota-${selectedOrder.no_nota}.png`;
                 link.href = canvas.toDataURL('image/png');
@@ -467,16 +469,17 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
                     formatCurrency={formatCurrency}
                 />
             </div>
+            {/* This is for rendering the note for export, positioned off-screen */}
+            <div style={{ position: 'absolute', left: '-9999px' }}>
+                 {selectedOrder && (
+                    <>
+                        <Nota ref={notaRef} order={selectedOrder} customers={customers} bahanList={bahanList} employees={employees} loggedInUser={loggedInUser} calculateTotal={calculateTotal} banks={banks} finishings={finishings} />
+                        <NotaGambar ref={notaGambarRef} order={selectedOrder} customers={customers} bahanList={bahanList} employees={employees} loggedInUser={loggedInUser} calculateTotal={calculateTotal} banks={banks} finishings={finishings} />
+                        <Struk ref={strukRef} order={selectedOrder} customers={customers} bahanList={bahanList} employees={employees} loggedInUser={loggedInUser} calculateTotal={calculateTotal} finishings={finishings} />
+                    </>
+                 )}
+            </div>
             <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-lg border border-slate-200 dark:border-slate-700 h-full flex flex-col no-print">
-                 {/* This is for rendering the note for export */}
-                <div className="hidden">
-                     {selectedOrder && (
-                        <>
-                            <Nota ref={notaRef} order={selectedOrder} customers={customers} bahanList={bahanList} employees={employees} loggedInUser={loggedInUser} calculateTotal={calculateTotal} banks={banks} finishings={finishings} />
-                            <Struk ref={strukRef} order={selectedOrder} customers={customers} bahanList={bahanList} employees={employees} loggedInUser={loggedInUser} calculateTotal={calculateTotal} finishings={finishings} />
-                        </>
-                     )}
-                </div>
                 <div className="flex flex-wrap gap-4 justify-between items-center mb-6 flex-shrink-0">
                     <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Manajemen Transaksi</h2>
                     <div className="flex items-center gap-3">
