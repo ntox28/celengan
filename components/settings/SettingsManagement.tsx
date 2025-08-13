@@ -14,6 +14,8 @@ import StockOpnameManagement from '../stock/StockOpnameManagement';
 import ClipboardListIcon from '../icons/ClipboardListIcon';
 import BellIcon from '../icons/BellIcon';
 import NotificationSettings from './NotificationSettings';
+import DatabaseIcon from '../icons/DatabaseIcon';
+import DataManagement from './DataManagement';
 
 interface SettingsProps {
     banks: Bank[];
@@ -47,6 +49,7 @@ const settingsTabs = [
     { name: 'Bank', icon: BankIcon, component: BankManagement, props: ['banks', 'addBank', 'updateBank', 'deleteBank'] },
     { name: 'Finishing', icon: FinishingIcon, component: FinishingManagement, props: ['finishings', 'addFinishing', 'updateFinishing', 'deleteFinishing'] },
     { name: 'Notifikasi', icon: BellIcon, component: NotificationSettings, props: [] },
+    { name: 'Impor & Ekspor Data', icon: DatabaseIcon, component: DataManagement, props: [] },
 ];
 
 const SettingsManagement: React.FC<SettingsProps> = (props) => {
