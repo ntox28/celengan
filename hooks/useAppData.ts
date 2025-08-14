@@ -363,26 +363,67 @@ export const useAppData = (user: User | undefined) => {
         const newPaddedNumberStr = String(nextNumber).padStart(padding, '0');
         const newNotaNumber = `${notaSetting.prefix}-${newPaddedNumberStr}`;
         
-        const { error } = await supabase.rpc('create_order_with_items', {
-            order_data: { ...orderData, no_nota: newNotaNumber },
-            order_items_data: orderData.order_items
-        });
+        const { order_items, ...mainOrderData } = orderData;
+        const { data: newOrder, error: orderError } = await supabase
+            .from('orders')
+            .insert({ ...mainOrderData, no_nota: newNotaNumber })
+            .select()
+            .single();
 
-        if (error) { addToast(`Gagal menyimpan order: ${error.message}`, 'error'); throw error; }
-        
+        if (orderError) {
+            addToast(`Gagal menyimpan order: ${orderError.message}`, 'error');
+            throw orderError;
+        }
+
+        if (!newOrder) {
+            const err = new Error('Gagal membuat record order utama.');
+            addToast(`Gagal menyimpan order: ${err.message}`, 'error');
+            throw err;
+        }
+
+        const itemsToInsert = order_items.map(item => ({ ...item, order_id: newOrder.id }));
+
+        const { error: itemsError } = await supabase.from('order_items').insert(itemsToInsert);
+
+        if (itemsError) {
+            addToast(`Gagal menyimpan item order: ${itemsError.message}. Mencoba menghapus order...`, 'error');
+            await supabase.from('orders').delete().eq('id', newOrder.id);
+            throw itemsError;
+        }
+
         await supabase.from('settings').update({ value: newPaddedNumberStr }).eq('key', 'nota_last_number');
         setNotaSetting(prev => ({ ...prev, start_number_str: newPaddedNumberStr }));
         addToast(`Order ${newNotaNumber} berhasil ditambahkan.`, 'success');
     };
 
     const updateOrder = async (id: number, orderData: UpdateOrderPayload) => {
-        const { error } = await supabase.rpc('update_order_with_items', {
-            p_order_id: id,
-            order_data: orderData,
-            order_items_data: orderData.order_items
-        });
+        const { order_items, ...mainOrderData } = orderData;
 
-        if (error) { addToast(`Gagal update order: ${error.message}`, 'error'); throw error; }
+        if (Object.keys(mainOrderData).length > 0) {
+            const { error: orderUpdateError } = await supabase.from('orders').update(mainOrderData).eq('id', id);
+            if (orderUpdateError) {
+                addToast(`Gagal update detail order: ${orderUpdateError.message}`, 'error');
+                throw orderUpdateError;
+            }
+        }
+        
+        if (order_items) {
+            const { error: deleteError } = await supabase.from('order_items').delete().eq('order_id', id);
+            if (deleteError) {
+                addToast(`Gagal menghapus item lama: ${deleteError.message}`, 'error');
+                throw deleteError;
+            }
+
+            const itemsToInsert = order_items.map(({ id: itemId, ...item }) => ({ ...item, order_id: id }));
+            
+            if (itemsToInsert.length > 0) {
+                const { error: insertError } = await supabase.from('order_items').insert(itemsToInsert);
+                if (insertError) {
+                    addToast(`Gagal menyimpan item baru: ${insertError.message}`, 'error');
+                    throw insertError;
+                }
+            }
+        }
         addToast(`Order berhasil diperbarui.`, 'success');
     };
     const deleteOrder = (id: number) => performDbOperation(supabase.from('orders').delete().eq('id', id), 'Order berhasil dihapus.');
