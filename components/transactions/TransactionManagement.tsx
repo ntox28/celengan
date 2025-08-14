@@ -15,8 +15,11 @@ import ReceiptIcon from '../icons/ReceiptIcon';
 import { useToast } from '../../hooks/useToast';
 import TransactionReport from './TransactionReport';
 import NotaGambar from './NotaGambar';
+<<<<<<< HEAD
 import UsersGroupIcon from '../icons/UsersGroupIcon';
 import CustomerReport from './CustomerReport';
+=======
+>>>>>>> e8001538ee1a59709d81da85613cab1478483cf9
 
 interface TransactionManagementProps {
     orders: Order[];
@@ -476,6 +479,7 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
         }
     };
 
+<<<<<<< HEAD
     const handleGenerateCustomerReport = () => {
         const { customerId, status, startDate, endDate } = customerReportFilters;
         
@@ -520,6 +524,8 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
         setIsCustomerReportModalOpen(false);
     };
 
+=======
+>>>>>>> e8001538ee1a59709d81da85613cab1478483cf9
     const kembalianBulk = newBulkPaymentAmount > totalUnpaidAmount ? newBulkPaymentAmount - totalUnpaidAmount : 0;
 
     return (
@@ -535,6 +541,16 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
                         formatCurrency={formatCurrency}
                     />
                 )}
+            </div>
+            {/* This is for rendering the note for export, positioned off-screen */}
+            <div style={{ position: 'absolute', left: '-9999px' }}>
+                 {selectedOrder && (
+                    <>
+                        <Nota ref={notaRef} order={selectedOrder} customers={customers} bahanList={bahanList} employees={employees} loggedInUser={loggedInUser} calculateTotal={calculateTotal} banks={banks} finishings={finishings} />
+                        <NotaGambar ref={notaGambarRef} order={selectedOrder} customers={customers} bahanList={bahanList} employees={employees} loggedInUser={loggedInUser} calculateTotal={calculateTotal} banks={banks} finishings={finishings} />
+                        <Struk ref={strukRef} order={selectedOrder} customers={customers} bahanList={bahanList} employees={employees} loggedInUser={loggedInUser} calculateTotal={calculateTotal} finishings={finishings} />
+                    </>
+                 )}
             </div>
             {/* This is for rendering the note for export, positioned off-screen */}
             <div style={{ position: 'absolute', left: '-9999px' }}>

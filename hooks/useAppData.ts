@@ -385,12 +385,47 @@ export const useAppData = (user: User | undefined) => {
         if (error) { addToast(`Gagal update order: ${error.message}`, 'error'); throw error; }
         addToast(`Order berhasil diperbarui.`, 'success');
     };
+<<<<<<< HEAD
     const deleteOrder = (id: number) => performDbOperation(supabase.from('orders').delete().eq('id', id), 'Order berhasil dihapus.');
     
     const addPaymentToOrder = (orderId: number, paymentData: Omit<Payment, 'id'|'created_at'|'order_id'>) => performDbOperation(
         supabase.from('payments').insert({ ...paymentData, order_id: orderId }),
         `Pembayaran ${formatCurrency(paymentData.amount)} berhasil ditambahkan.`
     );
+=======
+
+    const deleteOrder = async (id: number) => {
+        await deleteRecord('orders', id);
+        setOrders(prev => prev.filter(o => o.id !== id));
+        addToast('Order berhasil dihapus.', 'success');
+    };
+
+    const addPaymentToOrder = async (orderId: number, paymentData: Omit<Payment, 'id' | 'created_at' | 'order_id'>) => {
+        const order = orders.find(o => o.id === orderId);
+        if (!order) {
+            addToast('Order tidak ditemukan.', 'error');
+            return;
+        }
+    
+        const newPayment = await createRecord('payments', { ...paymentData, order_id: orderId });
+    
+        const totalBill = calculateOrderTotal(order, customers, bahanList);
+        const existingPayments = order.payments || [];
+        const newTotalPaid = [...existingPayments, newPayment].reduce((sum, p) => sum + p.amount, 0);
+    
+        const newStatus: PaymentStatus = newTotalPaid >= totalBill ? 'Lunas' : 'Belum Lunas';
+    
+        if (order.status_pembayaran !== newStatus) {
+            await updateRecord('orders', orderId, { status_pembayaran: newStatus });
+        }
+    
+        const fullOrder = await fetchFullOrder(orderId);
+        if (fullOrder) {
+             setOrders(prev => prev.map(o => o.id === orderId ? fullOrder : o));
+             addToast(`Pembayaran ${formatCurrency(newPayment.amount)} berhasil ditambahkan.`, 'success');
+        }
+    };
+>>>>>>> e8001538ee1a59709d81da85613cab1478483cf9
     
     const addBulkPaymentToOrders = async (
         paymentData: Omit<Payment, 'id'|'created_at'|'order_id'|'amount'>,
@@ -400,7 +435,14 @@ export const useAppData = (user: User | undefined) => {
         let remainingPayment = totalPaymentAmount;
         const sortedOrders = [...ordersToPay].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
     
+<<<<<<< HEAD
         const paymentInserts: Database['public']['Tables']['payments']['Insert'][] = [];
+=======
+        const paymentInserts: Tables['payments']['Insert'][] = [];
+        const affectedOrderIds = new Set<number>();
+        const newPaymentsByOrderId: Record<number, number> = {};
+    
+>>>>>>> e8001538ee1a59709d81da85613cab1478483cf9
         for (const order of sortedOrders) {
             if (remainingPayment <= 0) break;
             const totalBill = calculateOrderTotal(order, customers, bahanList);
@@ -409,12 +451,68 @@ export const useAppData = (user: User | undefined) => {
             if (balanceDue <= 0.01) continue;
             
             const amountToPay = Math.min(remainingPayment, balanceDue);
+            
             paymentInserts.push({ ...paymentData, order_id: order.id, amount: amountToPay });
+<<<<<<< HEAD
             remainingPayment -= amountToPay;
         }
     
         if (paymentInserts.length === 0) { addToast('Tidak ada pembayaran yang dapat diproses.', 'info'); return; }
         await performDbOperation(supabase.from('payments').insert(paymentInserts), `${paymentInserts.length} pembayaran berhasil diproses.`);
+=======
+            affectedOrderIds.add(order.id);
+            newPaymentsByOrderId[order.id] = (newPaymentsByOrderId[order.id] || 0) + amountToPay;
+            remainingPayment -= amountToPay;
+        }
+    
+        if (paymentInserts.length === 0) {
+            addToast('Tidak ada pembayaran yang dapat diproses.', 'info');
+            return;
+        }
+    
+        try {
+            const { error: insertError } = await supabase.from('payments').insert(paymentInserts as any);
+            if (insertError) throw insertError;
+    
+            const orderStatusUpdates = [];
+            for (const orderId of affectedOrderIds) {
+                const order = orders.find(o => o.id === orderId);
+                if (!order) continue;
+    
+                const totalBill = calculateOrderTotal(order, customers, bahanList);
+                const originalPaid = order.payments.reduce((sum, p) => sum + p.amount, 0);
+                const newPaymentAmount = newPaymentsByOrderId[orderId] || 0;
+                const newTotalPaid = originalPaid + newPaymentAmount;
+    
+                if (newTotalPaid >= totalBill && order.status_pembayaran !== 'Lunas') {
+                    orderStatusUpdates.push(
+                        supabase.from('orders').update({ status_pembayaran: 'Lunas' }).eq('id', orderId)
+                    );
+                }
+            }
+            
+            if (orderStatusUpdates.length > 0) {
+                await Promise.all(orderStatusUpdates);
+            }
+    
+            const updatedOrders = await Promise.all(Array.from(affectedOrderIds).map(id => fetchFullOrder(id)));
+            setOrders(prev => {
+                const newOrders = [...prev];
+                updatedOrders.forEach(updatedOrder => {
+                    if (updatedOrder) {
+                        const index = newOrders.findIndex(o => o.id === updatedOrder.id);
+                        if (index !== -1) newOrders[index] = updatedOrder;
+                    }
+                });
+                return newOrders;
+            });
+    
+            addToast(`${paymentInserts.length} pembayaran berhasil diproses.`, 'success');
+        } catch (error: any) {
+            addToast(`Gagal memproses pembayaran: ${error.message}`, 'error');
+            throw error;
+        }
+>>>>>>> e8001538ee1a59709d81da85613cab1478483cf9
     };
 
     const updateOrderStatus = async (orderId: number, status: OrderStatus, pelaksana_id: string | null = null) => {
