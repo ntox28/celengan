@@ -195,11 +195,7 @@ const CustomerReport = forwardRef<HTMLDivElement, CustomerReportProps>(({ orders
                     <p key={b.id}><span className="font-semibold">{b.name}:</span> {b.account_number}</p>
                 ))}
                 </div>
-<<<<<<< HEAD
                 
-=======
-                <p className="text-center mt-3">Terima kasih atas kepercayaan Anda!</p>
->>>>>>> 82cb78960309d78304c4ab9a91cbcd6ee1ec9130
             </footer>
         </div>
     );
