@@ -146,6 +146,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     addCustomer={addCustomer}
                     bahanList={bahanList} 
                     orders={orders} 
+                    employees={employees}
                     loggedInUser={user} 
                     addOrder={addOrder} 
                     updateOrder={updateOrder} 
@@ -179,6 +180,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
             bahanList={bahanList}
             finishings={finishings}
             employees={employees}
+            loggedInUser={user}
             updateOrderStatus={updateOrderStatus}
         />;
       case 'Transaksi':

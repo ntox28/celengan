@@ -15,6 +15,8 @@ import ReceiptIcon from '../icons/ReceiptIcon';
 import { useToast } from '../../hooks/useToast';
 import TransactionReport from './TransactionReport';
 import NotaGambar from './NotaGambar';
+import UsersGroupIcon from '../icons/UsersGroupIcon';
+import CustomerReport from './CustomerReport';
 
 interface TransactionManagementProps {
     orders: Order[];
@@ -50,7 +52,7 @@ const getOrderStatusColor = (status: OrderStatus) => {
         'Delivered': 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300',
         'Ready': 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/50 dark:text-cyan-300',
         'Proses': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300',
-        'Waiting': 'bg-gray-100 text-gray-800 dark:bg-slate-600 dark:text-slate-200',
+        'Waiting': 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300',
         'Pending': 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'
     };
     return colors[status];
@@ -78,6 +80,7 @@ const calculateTotalPaid = (order: Order): number => {
 const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, customers, bahanList, loggedInUser, employees, addPaymentToOrder, addBulkPaymentToOrders, banks, finishings }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isBulkPayModalOpen, setIsBulkPayModalOpen] = useState(false);
+    const [isCustomerReportModalOpen, setIsCustomerReportModalOpen] = useState(false);
     const [isActionMenuOpen, setIsActionMenuOpen] = useState<number | null>(null);
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
     const [newPaymentAmount, setNewPaymentAmount] = useState(0);
@@ -95,11 +98,19 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
     const { addToast } = useToast();
     const ITEMS_PER_PAGE = 5;
     
+    const [printableContent, setPrintableContent] = useState<React.ReactNode | null>(null);
+    
     const [filters, setFilters] = useState({
         customerId: 'all',
         startDate: '',
         endDate: '',
         status: 'all',
+    });
+    const [customerReportFilters, setCustomerReportFilters] = useState({
+        customerId: 'all',
+        status: 'all',
+        startDate: '',
+        endDate: new Date().toISOString().split('T')[0],
     });
 
     const calculateTotal = (order: Order): number => {
@@ -116,6 +127,16 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
             return total + itemTotal;
         }, 0);
     };
+    
+    useEffect(() => {
+        if (printableContent) {
+            const timer = setTimeout(() => {
+                window.print();
+                setPrintableContent(null);
+            }, 100);
+            return () => clearTimeout(timer);
+        }
+    }, [printableContent]);
     
     const todayStats = useMemo(() => {
         const todayStr = new Date().toISOString().split('T')[0];
@@ -455,19 +476,65 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
         }
     };
 
+    const handleGenerateCustomerReport = () => {
+        const { customerId, status, startDate, endDate } = customerReportFilters;
+        
+        if (customerId === 'all') {
+            addToast('Harap pilih pelanggan terlebih dahulu.', 'error');
+            return;
+        }
+
+        const selectedCustomer = customers.find(c => c.id === Number(customerId));
+        if (!selectedCustomer) {
+            addToast('Pelanggan tidak ditemukan.', 'error');
+            return;
+        }
+
+        const filtered = orders.filter(order => {
+            let matches = true;
+            if (order.pelanggan_id !== Number(customerId)) matches = false;
+            if (status !== 'all' && order.status_pembayaran !== status) matches = false;
+            if (startDate && order.tanggal < startDate) matches = false;
+            if (endDate && order.tanggal > endDate) matches = false;
+            return matches;
+        });
+
+        if (filtered.length === 0) {
+            addToast('Tidak ada data yang ditemukan untuk laporan ini.', 'info');
+            return;
+        }
+        
+        setPrintableContent(
+            <CustomerReport
+                orders={filtered}
+                customer={selectedCustomer}
+                filters={customerReportFilters}
+                bahanList={bahanList}
+                employees={employees}
+                banks={banks}
+                calculateTotal={calculateTotal}
+                formatCurrency={formatCurrency}
+                getPriceForCustomer={getPriceForCustomer}
+            />
+        );
+        setIsCustomerReportModalOpen(false);
+    };
+
     const kembalianBulk = newBulkPaymentAmount > totalUnpaidAmount ? newBulkPaymentAmount - totalUnpaidAmount : 0;
 
     return (
         <>
             <div className="hidden print:block printable-area">
-                <TransactionReport
-                    orders={transactions}
-                    customers={customers}
-                    bahanList={bahanList}
-                    calculateTotal={calculateTotal}
-                    getPriceForCustomer={getPriceForCustomer}
-                    formatCurrency={formatCurrency}
-                />
+                {printableContent || (
+                    <TransactionReport
+                        orders={transactions}
+                        customers={customers}
+                        bahanList={bahanList}
+                        calculateTotal={calculateTotal}
+                        getPriceForCustomer={getPriceForCustomer}
+                        formatCurrency={formatCurrency}
+                    />
+                )}
             </div>
             {/* This is for rendering the note for export, positioned off-screen */}
             <div style={{ position: 'absolute', left: '-9999px' }}>
@@ -492,7 +559,26 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
                             <span className="hidden sm:inline">Bayar Langsung</span>
                         </button>
                         <button
-                            onClick={() => window.print()}
+                            onClick={() => setIsCustomerReportModalOpen(true)}
+                            className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300 flex items-center gap-2"
+                            title="Cetak Laporan Pelanggan"
+                        >
+                            <UsersGroupIcon className="w-5 h-5" />
+                            <span className="hidden sm:inline">Laporan Pelanggan</span>
+                        </button>
+                        <button
+                            onClick={() => {
+                                setPrintableContent(
+                                    <TransactionReport
+                                        orders={transactions}
+                                        customers={customers}
+                                        bahanList={bahanList}
+                                        calculateTotal={calculateTotal}
+                                        getPriceForCustomer={getPriceForCustomer}
+                                        formatCurrency={formatCurrency}
+                                    />
+                                );
+                            }}
                             className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300 flex items-center gap-2"
                             title="Cetak Laporan Transaksi"
                         >
@@ -786,6 +872,49 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
                                     {isSubmitting ? 'Menyimpan...' : 'Simpan Pembayaran'}
                                 </button>
                                 <button onClick={handleCloseBulkModal} className="w-full sm:w-auto flex-1 px-6 py-3 rounded-lg text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 transition-colors">
+                                    Batal
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {isCustomerReportModalOpen && (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50" onClick={() => setIsCustomerReportModalOpen(false)}>
+                        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg p-6 sm:p-8 m-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                            <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-6 flex-shrink-0">Laporan Pelanggan</h3>
+                            <div className="flex-1 overflow-y-auto -mr-4 pr-4 space-y-4">
+                                <div>
+                                    <label htmlFor="cr_customerId" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Pelanggan</label>
+                                    <select id="cr_customerId" value={customerReportFilters.customerId} onChange={(e) => setCustomerReportFilters(p => ({...p, customerId: e.target.value}))} className="w-full pl-3 pr-10 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100" required>
+                                        <option value="all" disabled>Pilih Pelanggan</option>
+                                        {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label htmlFor="cr_status" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Status Pembayaran</label>
+                                    <select id="cr_status" value={customerReportFilters.status} onChange={(e) => setCustomerReportFilters(p => ({...p, status: e.target.value}))} className="w-full pl-3 pr-10 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100">
+                                        <option value="all">Semua Status</option>
+                                        <option value="Lunas">Lunas</option>
+                                        <option value="Belum Lunas">Belum Lunas</option>
+                                    </select>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label htmlFor="cr_startDate" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Tanggal Mulai</label>
+                                        <input type="date" id="cr_startDate" value={customerReportFilters.startDate} onChange={(e) => setCustomerReportFilters(p => ({...p, startDate: e.target.value}))} className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100" />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="cr_endDate" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Tanggal Akhir</label>
+                                        <input type="date" id="cr_endDate" value={customerReportFilters.endDate} onChange={(e) => setCustomerReportFilters(p => ({...p, endDate: e.target.value}))} className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100" />
+                                    </div>
+                                </div>
+                            </div>
+                             <div className="pt-6 border-t border-slate-200 dark:border-slate-700 flex-shrink-0 flex flex-col sm:flex-row gap-3">
+                                <button onClick={handleGenerateCustomerReport} className="w-full sm:w-auto flex-1 px-6 py-3 rounded-lg text-white bg-pink-600 hover:bg-pink-700 transition-colors">
+                                    Cetak Laporan
+                                </button>
+                                <button onClick={() => setIsCustomerReportModalOpen(false)} className="w-full sm:w-auto flex-1 px-6 py-3 rounded-lg text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 transition-colors">
                                     Batal
                                 </button>
                             </div>

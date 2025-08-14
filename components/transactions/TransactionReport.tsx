@@ -1,4 +1,3 @@
-
 import React, { forwardRef } from 'react';
 import { Order, Customer, Bahan } from '../../lib/supabaseClient';
 
@@ -36,7 +35,7 @@ const TransactionReport = forwardRef<HTMLDivElement, TransactionReportProps>(
 
     const totalRevenue = orders.reduce((sum, order) => sum + calculateTotal(order), 0);
     const totalPaid = orders.flatMap(o => o.payments).reduce((sum, p) => sum + p.amount, 0);
-    const totalReceivables = totalRevenue - totalPaid;
+    const totalReceivables = Math.max(0, totalRevenue - totalPaid);
 
     return (
       <div ref={ref} className="bg-white text-black p-4 font-sans text-xs">

@@ -4,17 +4,7 @@ import type { User as AuthUser, Session as AuthSession } from '@supabase/auth-js
 const supabaseUrl = 'https://xkvgflhjcnkythytbkuj.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhrdmdmbGhqY25reXRoeXRia3VqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ0NDM4OTYsImV4cCI6MjA3MDAxOTg5Nn0.X9CM27REAKqjD82jAgZEKRGTo0LTkUpI8Df5feUOxww';
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true,
-  },
-});
-
-// Re-export Supabase types for convenience
-export type User = AuthUser;
-export type Session = AuthSession;
+// All type definitions must come before they are used in createClient.
 
 export type Json =
   | string
@@ -93,9 +83,11 @@ export interface OrderRow {
     no_nota: string;
     tanggal: string;
     pelanggan_id: number;
-    pelaksana_id: string | null;
     status_pembayaran: PaymentStatus;
     status_pesanan: OrderStatus;
+    pelaksana_order_id: string | null;
+    pelaksana_produksi_id: string | null;
+    pelaksana_delivery_id: string | null;
 }
 
 export interface Order extends OrderRow {
@@ -213,81 +205,97 @@ export interface Database {
         Row: Customer;
         Insert: { name: string; email: string; phone: string; address: string; level: CustomerLevel; };
         Update: { name?: string; email?: string; phone?: string; address?: string; level?: CustomerLevel; };
+        Relationships: [];
       };
       employees: {
         Row: Employee;
         Insert: { name: string; position: EmployeePosition; email: string | null; phone: string | null; user_id: string | null; };
         Update: { name?: string; position?: EmployeePosition; email?: string | null; phone?: string | null; user_id?: string | null; };
+        Relationships: [];
       };
       bahan: {
         Row: Bahan;
-        Insert: { name: string; harga_end_customer: number; harga_retail: number; harga_grosir: number; harga_reseller: number; harga_corporate: number; stock_qty?: number };
-        Update: { name?: string; harga_end_customer?: number; harga_retail?: number; harga_grosir?: number; harga_reseller?: number; harga_corporate?: number; stock_qty?: number };
+        Insert: { name: string; harga_end_customer: number; harga_retail: number; harga_grosir: number; harga_reseller: number; harga_corporate: number; stock_qty?: number; };
+        Update: { name?: string; harga_end_customer?: number; harga_retail?: number; harga_grosir?: number; harga_reseller?: number; harga_corporate?: number; stock_qty?: number; };
+        Relationships: [];
       };
       expenses: {
         Row: Expense;
         Insert: { tanggal: string; jenis_pengeluaran: ExpenseCategory; keterangan: string | null; supplier_id: number | null; bahan_id: number | null; qty: number; harga: number; };
         Update: { tanggal?: string; jenis_pengeluaran?: ExpenseCategory; keterangan?: string | null; supplier_id?: number | null; bahan_id?: number | null; qty?: number; harga?: number; };
+        Relationships: [];
       };
       orders: {
         Row: OrderRow;
-        Insert: { no_nota: string; tanggal: string; pelanggan_id: number; pelaksana_id: string | null; status_pembayaran: PaymentStatus; status_pesanan: OrderStatus; };
-        Update: { no_nota?: string; tanggal?: string; pelanggan_id?: number; pelaksana_id?: string | null; status_pembayaran?: PaymentStatus; status_pesanan?: OrderStatus; };
+        Insert: { no_nota: string; tanggal: string; pelanggan_id: number; status_pembayaran: PaymentStatus; status_pesanan: OrderStatus; pelaksana_order_id: string | null; pelaksana_produksi_id: string | null; pelaksana_delivery_id: string | null; };
+        Update: { no_nota?: string; tanggal?: string; pelanggan_id?: number; status_pembayaran?: PaymentStatus; status_pesanan?: OrderStatus; pelaksana_order_id?: string | null; pelaksana_produksi_id?: string | null; pelaksana_delivery_id?: string | null; };
+        Relationships: [];
       };
       order_items: {
         Row: OrderItem;
         Insert: { order_id: number; bahan_id: number; deskripsi_pesanan: string | null; panjang: number | null; lebar: number | null; qty: number; status_produksi: ProductionStatus; finishing_id: number | null; };
         Update: { order_id?: number; bahan_id?: number; deskripsi_pesanan?: string | null; panjang?: number | null; lebar?: number | null; qty?: number; status_produksi?: ProductionStatus; finishing_id?: number | null; };
+        Relationships: [];
       };
       payments: {
         Row: Payment;
         Insert: { order_id: number; amount: number; payment_date: string; kasir_id: string | null; bank_id: number | null; };
         Update: { order_id?: number; amount?: number; payment_date?: string; kasir_id?: string | null; bank_id?: number | null; };
+        Relationships: [];
       };
       banks: {
         Row: Bank;
         Insert: { name: string; account_holder: string; account_number: string; category: 'Bank' | 'Digital Wallet' | 'Qris'; };
         Update: { name?: string; account_holder?: string; account_number?: string; category?: 'Bank' | 'Digital Wallet' | 'Qris'; };
+        Relationships: [];
       };
       assets: {
         Row: Asset;
         Insert: { name: string; category: AssetCategory; purchase_price: number; purchase_date: string; status: AssetStatus; };
         Update: { name?: string; category?: AssetCategory; purchase_price?: number; purchase_date?: string; status?: AssetStatus; };
+        Relationships: [];
       };
       debts: {
         Row: Debt;
         Insert: { creditor_name: string; category: DebtCategory; description: string; total_amount: number; due_date: string; status: DebtStatus; };
         Update: { creditor_name?: string; category?: DebtCategory; description?: string; total_amount?: number; due_date?: string; status?: DebtStatus; };
+        Relationships: [];
       };
       suppliers: {
         Row: Supplier;
         Insert: { name: string; contact_person: string | null; phone: string | null; specialty: string | null; };
         Update: { name?: string; contact_person?: string | null; phone?: string | null; specialty?: string | null; };
+        Relationships: [];
       };
       stock_movements: {
         Row: StockMovement;
         Insert: { bahan_id: number; type: StockMovementType; quantity: number; supplier_id: number | null; notes: string | null; };
         Update: { bahan_id?: number; type?: StockMovementType; quantity?: number; supplier_id?: number | null; notes?: string | null; };
+        Relationships: [];
       };
       finishings: {
         Row: Finishing;
         Insert: { name: string; panjang_tambahan: number; lebar_tambahan: number; };
         Update: { name?: string; panjang_tambahan?: number; lebar_tambahan?: number; };
+        Relationships: [];
       };
       printers: {
         Row: Printer;
         Insert: { name: string; type: PrinterType; target: PrintTarget; is_default: boolean; };
         Update: { name?: string; type?: PrinterType; target?: PrintTarget; is_default?: boolean; };
+        Relationships: [];
       };
       display_settings: {
         Row: DisplaySettings;
-        Insert: { youtube_url: YouTubePlaylistItem[] | null; };
-        Update: { youtube_url?: YouTubePlaylistItem[] | null; };
+        Insert: { id?: number, youtube_url: Json | null; };
+        Update: { id?: number, youtube_url?: Json | null; };
+        Relationships: [];
       };
       settings: {
         Row: { key: string; value: string; };
         Insert: { key: string; value: string; };
         Update: { key?: string; value?: string; };
+        Relationships: [];
       }
     };
     Views: {
@@ -298,3 +306,15 @@ export interface Database {
     };
   };
 }
+
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+  },
+});
+
+// Re-export Supabase types for convenience
+export type User = AuthUser;
+export type Session = AuthSession;
