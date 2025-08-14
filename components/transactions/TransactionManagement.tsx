@@ -14,6 +14,9 @@ import Struk from './Struk';
 import ReceiptIcon from '../icons/ReceiptIcon';
 import { useToast } from '../../hooks/useToast';
 import TransactionReport from './TransactionReport';
+import NotaGambar from './NotaGambar';
+import UsersGroupIcon from '../icons/UsersGroupIcon';
+import CustomerReport from './CustomerReport';
 
 interface TransactionManagementProps {
     orders: Order[];
@@ -77,6 +80,7 @@ const calculateTotalPaid = (order: Order): number => {
 const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, customers, bahanList, loggedInUser, employees, addPaymentToOrder, addBulkPaymentToOrders, banks, finishings }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isBulkPayModalOpen, setIsBulkPayModalOpen] = useState(false);
+    const [isCustomerReportModalOpen, setIsCustomerReportModalOpen] = useState(false);
     const [isActionMenuOpen, setIsActionMenuOpen] = useState<number | null>(null);
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
     const [newPaymentAmount, setNewPaymentAmount] = useState(0);
@@ -87,17 +91,26 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
     const [newBulkPaymentBankId, setNewBulkPaymentBankId] = useState<string>('cash');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const notaRef = useRef<HTMLDivElement>(null);
+    const notaGambarRef = useRef<HTMLDivElement>(null);
     const strukRef = useRef<HTMLDivElement>(null);
     const actionMenuRef = useRef<HTMLDivElement>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const { addToast } = useToast();
     const ITEMS_PER_PAGE = 5;
     
+    const [printableContent, setPrintableContent] = useState<React.ReactNode | null>(null);
+    
     const [filters, setFilters] = useState({
         customerId: 'all',
         startDate: '',
         endDate: '',
         status: 'all',
+    });
+    const [customerReportFilters, setCustomerReportFilters] = useState({
+        customerId: 'all',
+        status: 'all',
+        startDate: '',
+        endDate: new Date().toISOString().split('T')[0],
     });
 
     const calculateTotal = (order: Order): number => {
@@ -115,15 +128,40 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
         }, 0);
     };
     
+    useEffect(() => {
+        if (printableContent) {
+            const timer = setTimeout(() => {
+                window.print();
+                setPrintableContent(null);
+            }, 100);
+            return () => clearTimeout(timer);
+        }
+    }, [printableContent]);
+    
     const todayStats = useMemo(() => {
         const todayStr = new Date().toISOString().split('T')[0];
-
-        const revenueToday = orders.flatMap(o => o.payments)
+    
+        const revenueToday = orders
+            .flatMap(o => o.payments)
             .filter(p => p.payment_date === todayStr)
-            .reduce((sum, p) => sum + p.amount, 0);
-        
+            .reduce((sum, payment) => {
+                const order = orders.find(o => o.id === payment.order_id);
+                if (!order) return sum;
+    
+                const totalTagihan = calculateTotal(order);
+    
+                const paidBeforeThisPayment = order.payments
+                    .filter(p => p.id !== payment.id && new Date(p.created_at) < new Date(payment.created_at))
+                    .reduce((acc, p) => acc + p.amount, 0);
+    
+                const sisaTagihanSebelumnya = Math.max(0, totalTagihan - paidBeforeThisPayment);
+                const amountApplied = Math.min(payment.amount, sisaTagihanSebelumnya);
+    
+                return sum + amountApplied;
+            }, 0);
+    
         const todaysOrders = orders.filter(o => o.tanggal === todayStr);
-
+    
         const unpaidToday = todaysOrders
             .filter(o => o.status_pembayaran !== 'Lunas')
             .reduce((sum, o) => {
@@ -133,7 +171,7 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
             }, 0);
             
         const totalOrdersToday = todaysOrders.length;
-
+    
         return { revenueToday, unpaidToday, totalOrdersToday };
     }, [orders, customers, bahanList]);
 
@@ -282,7 +320,7 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
         }
     
         const printContents = notaRef.current.innerHTML;
-        const printWindow = window.open('', '', 'height=800,width=800');
+        const printWindow = window.open('', '', 'height=800,width=1200');
 
         if (printWindow) {
             printWindow.document.write('<html><head><title>Cetak Nota</title>');
@@ -325,7 +363,7 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
     const handlePrintStruk = () => {
   const printContents = strukRef.current?.innerHTML;
   if(printContents) {
-    const printWindow = window.open('', '', 'height=600,width=400');
+    const printWindow = window.open('', '', 'height=800,width=1200');
     if (!printWindow) return;
 
     printWindow.document.write('<html><head><title>Cetak Struk</title>');
@@ -384,9 +422,9 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
 
     
     const handleSaveImage = () => {
-        if(notaRef.current && selectedOrder){
+        if(notaGambarRef.current && selectedOrder){
             addToast('Menyimpan nota sebagai gambar...', 'info');
-            html2canvas(notaRef.current, {scale: 2, backgroundColor: '#ffffff'}).then(canvas => {
+            html2canvas(notaGambarRef.current, {scale: 2, backgroundColor: '#ffffff'}).then(canvas => {
                 const link = document.createElement('a');
                 link.download = `nota-${selectedOrder.no_nota}.png`;
                 link.href = canvas.toDataURL('image/png');
@@ -438,28 +476,77 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
         }
     };
 
+    const handleGenerateCustomerReport = () => {
+        const { customerId, status, startDate, endDate } = customerReportFilters;
+        
+        if (customerId === 'all') {
+            addToast('Harap pilih pelanggan terlebih dahulu.', 'error');
+            return;
+        }
+
+        const selectedCustomer = customers.find(c => c.id === Number(customerId));
+        if (!selectedCustomer) {
+            addToast('Pelanggan tidak ditemukan.', 'error');
+            return;
+        }
+
+        const filtered = orders.filter(order => {
+            let matches = true;
+            if (order.pelanggan_id !== Number(customerId)) matches = false;
+            if (status !== 'all' && order.status_pembayaran !== status) matches = false;
+            if (startDate && order.tanggal < startDate) matches = false;
+            if (endDate && order.tanggal > endDate) matches = false;
+            return matches;
+        });
+
+        if (filtered.length === 0) {
+            addToast('Tidak ada data yang ditemukan untuk laporan ini.', 'info');
+            return;
+        }
+        
+        setPrintableContent(
+            <CustomerReport
+                orders={filtered}
+                customer={selectedCustomer}
+                filters={customerReportFilters}
+                bahanList={bahanList}
+                employees={employees}
+                banks={banks}
+                calculateTotal={calculateTotal}
+                formatCurrency={formatCurrency}
+                getPriceForCustomer={getPriceForCustomer}
+            />
+        );
+        setIsCustomerReportModalOpen(false);
+    };
+
+    const kembalianBulk = newBulkPaymentAmount > totalUnpaidAmount ? newBulkPaymentAmount - totalUnpaidAmount : 0;
+
     return (
         <>
             <div className="hidden print:block printable-area">
-                <TransactionReport
-                    orders={transactions}
-                    customers={customers}
-                    bahanList={bahanList}
-                    calculateTotal={calculateTotal}
-                    getPriceForCustomer={getPriceForCustomer}
-                    formatCurrency={formatCurrency}
-                />
+                {printableContent || (
+                    <TransactionReport
+                        orders={transactions}
+                        customers={customers}
+                        bahanList={bahanList}
+                        calculateTotal={calculateTotal}
+                        getPriceForCustomer={getPriceForCustomer}
+                        formatCurrency={formatCurrency}
+                    />
+                )}
+            </div>
+            {/* This is for rendering the note for export, positioned off-screen */}
+            <div style={{ position: 'absolute', left: '-9999px' }}>
+                 {selectedOrder && (
+                    <>
+                        <Nota ref={notaRef} order={selectedOrder} customers={customers} bahanList={bahanList} employees={employees} loggedInUser={loggedInUser} calculateTotal={calculateTotal} banks={banks} finishings={finishings} />
+                        <NotaGambar ref={notaGambarRef} order={selectedOrder} customers={customers} bahanList={bahanList} employees={employees} loggedInUser={loggedInUser} calculateTotal={calculateTotal} banks={banks} finishings={finishings} />
+                        <Struk ref={strukRef} order={selectedOrder} customers={customers} bahanList={bahanList} employees={employees} loggedInUser={loggedInUser} calculateTotal={calculateTotal} finishings={finishings} />
+                    </>
+                 )}
             </div>
             <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-lg border border-slate-200 dark:border-slate-700 h-full flex flex-col no-print">
-                 {/* This is for rendering the note for export */}
-                <div className="hidden">
-                     {selectedOrder && (
-                        <>
-                            <Nota ref={notaRef} order={selectedOrder} customers={customers} bahanList={bahanList} employees={employees} loggedInUser={loggedInUser} calculateTotal={calculateTotal} banks={banks} finishings={finishings} />
-                            <Struk ref={strukRef} order={selectedOrder} customers={customers} bahanList={bahanList} employees={employees} loggedInUser={loggedInUser} calculateTotal={calculateTotal} finishings={finishings} />
-                        </>
-                     )}
-                </div>
                 <div className="flex flex-wrap gap-4 justify-between items-center mb-6 flex-shrink-0">
                     <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Manajemen Transaksi</h2>
                     <div className="flex items-center gap-3">
@@ -472,7 +559,26 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
                             <span className="hidden sm:inline">Bayar Langsung</span>
                         </button>
                         <button
-                            onClick={() => window.print()}
+                            onClick={() => setIsCustomerReportModalOpen(true)}
+                            className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300 flex items-center gap-2"
+                            title="Cetak Laporan Pelanggan"
+                        >
+                            <UsersGroupIcon className="w-5 h-5" />
+                            <span className="hidden sm:inline">Laporan Pelanggan</span>
+                        </button>
+                        <button
+                            onClick={() => {
+                                setPrintableContent(
+                                    <TransactionReport
+                                        orders={transactions}
+                                        customers={customers}
+                                        bahanList={bahanList}
+                                        calculateTotal={calculateTotal}
+                                        getPriceForCustomer={getPriceForCustomer}
+                                        formatCurrency={formatCurrency}
+                                    />
+                                );
+                            }}
                             className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300 flex items-center gap-2"
                             title="Cetak Laporan Transaksi"
                         >
@@ -579,109 +685,124 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
                 )}
 
 
-                {isModalOpen && selectedOrder && (
-                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50" onClick={handleCloseModal}>
-                        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-2xl p-6 sm:p-8 m-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                            <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2 flex-shrink-0">Proses Pembayaran</h3>
-                            <p className="text-slate-500 dark:text-slate-400 mb-6 flex-shrink-0">No. Nota: <span className="font-semibold text-slate-700 dark:text-slate-200">{selectedOrder.no_nota}</span></p>
-
-                            <div className="flex-1 overflow-y-auto -mr-4 pr-4 space-y-6">
-                                {/* Summary */}
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-                                    <div>
-                                        <p className="text-sm text-slate-500 dark:text-slate-400">Total Tagihan</p>
-                                        <p className="text-lg font-bold text-slate-800 dark:text-slate-100">{formatCurrency(calculateTotal(selectedOrder))}</p>
+                {isModalOpen && selectedOrder && (() => {
+                    const totalTagihan = calculateTotal(selectedOrder);
+                    const totalDibayar = calculateTotalPaid(selectedOrder);
+                    const sisaTagihan = Math.max(0, totalTagihan - totalDibayar);
+                    const kembalian = newPaymentAmount > sisaTagihan ? newPaymentAmount - sisaTagihan : 0;
+                    
+                    return (
+                        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50" onClick={handleCloseModal}>
+                            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-2xl p-6 sm:p-8 m-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                                <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2 flex-shrink-0">Proses Pembayaran</h3>
+                                <p className="text-slate-500 dark:text-slate-400 mb-6 flex-shrink-0">No. Nota: <span className="font-semibold text-slate-700 dark:text-slate-200">{selectedOrder.no_nota}</span></p>
+    
+                                <div className="flex-1 overflow-y-auto -mr-4 pr-4 space-y-6">
+                                    {/* Summary */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+                                        <div>
+                                            <p className="text-sm text-slate-500 dark:text-slate-400">Total Tagihan</p>
+                                            <p className="text-lg font-bold text-slate-800 dark:text-slate-100">{formatCurrency(totalTagihan)}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-slate-500 dark:text-slate-400">Telah Dibayar</p>
+                                            <p className="text-lg font-bold text-green-600 dark:text-green-400">{formatCurrency(totalDibayar)}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-slate-500 dark:text-slate-400">Sisa Tagihan</p>
+                                            <p className="text-lg font-bold text-red-500 dark:text-red-400">{formatCurrency(sisaTagihan)}</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <p className="text-sm text-slate-500 dark:text-slate-400">Telah Dibayar</p>
-                                        <p className="text-lg font-bold text-green-600 dark:text-green-400">{formatCurrency(calculateTotalPaid(selectedOrder))}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm text-slate-500 dark:text-slate-400">Sisa Tagihan</p>
-                                        <p className="text-lg font-bold text-red-500 dark:text-red-400">{formatCurrency(calculateTotal(selectedOrder) - calculateTotalPaid(selectedOrder))}</p>
-                                    </div>
-                                </div>
-
-                                {/* Payment History */}
-                                {selectedOrder.payments.length > 0 && (
-                                    <div>
-                                        <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-2">Riwayat Pembayaran</h4>
-                                        <div className="max-h-40 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg p-2 space-y-2">
-                                            {selectedOrder.payments.map(payment => (
-                                                <div key={payment.id} className="flex justify-between items-center text-sm p-2 bg-slate-50 dark:bg-slate-700/50 rounded-md">
-                                                    <div>
-                                                        <p className="font-medium text-slate-800 dark:text-slate-200">{new Date(payment.payment_date).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p>
-                                                        <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">Kasir: {employees.find(e => e.user_id === payment.kasir_id)?.name || 'N/A'}</p>
-                                                        <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">Sumber: {banks.find(b => b.id === payment.bank_id)?.name || 'Cash'}</p>
+    
+                                    {/* Payment History */}
+                                    {selectedOrder.payments.length > 0 && (
+                                        <div>
+                                            <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-2">Riwayat Pembayaran</h4>
+                                            <div className="max-h-40 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg p-2 space-y-2">
+                                                {selectedOrder.payments.map(payment => (
+                                                    <div key={payment.id} className="flex justify-between items-center text-sm p-2 bg-slate-50 dark:bg-slate-700/50 rounded-md">
+                                                        <div>
+                                                            <p className="font-medium text-slate-800 dark:text-slate-200">{new Date(payment.payment_date).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p>
+                                                            <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">Kasir: {employees.find(e => e.user_id === payment.kasir_id)?.name || 'N/A'}</p>
+                                                            <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">Sumber: {banks.find(b => b.id === payment.bank_id)?.name || 'Cash'}</p>
+                                                        </div>
+                                                        <p className="font-semibold text-green-600 dark:text-green-500">{formatCurrency(payment.amount)}</p>
                                                     </div>
-                                                    <p className="font-semibold text-green-600 dark:text-green-500">{formatCurrency(payment.amount)}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* New Payment Form */}
-                                <div>
-                                    <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-3">Tambah Pembayaran Baru</h4>
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label htmlFor="paymentAmount" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Jumlah Pembayaran</label>
-                                            <input
-                                                id="paymentAmount"
-                                                type="number"
-                                                value={newPaymentAmount}
-                                                onChange={(e) => setNewPaymentAmount(Number(e.target.value))}
-                                                className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100"
-                                                placeholder="Masukkan jumlah"
-                                            />
-                                        </div>
-                                         <div>
-                                            <label htmlFor="paymentDate" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Tanggal Pembayaran</label>
-                                            <input
-                                                id="paymentDate"
-                                                type="date"
-                                                value={newPaymentDate}
-                                                onChange={(e) => setNewPaymentDate(e.target.value)}
-                                                className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label htmlFor="paymentSource" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Sumber Dana</label>
-                                            <select
-                                                id="paymentSource"
-                                                value={newPaymentBankId}
-                                                onChange={(e) => setNewPaymentBankId(e.target.value)}
-                                                className="w-full pl-3 pr-10 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100 appearance-none" style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em' }}
-                                            >
-                                                <option value="cash">Cash</option>
-                                                {banks.map(bank => (
-                                                    <option key={bank.id} value={bank.id}>{bank.name} - {bank.account_holder}</option>
                                                 ))}
-                                            </select>
+                                            </div>
+                                        </div>
+                                    )}
+    
+                                    {/* New Payment Form */}
+                                    <div>
+                                        <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-3">Tambah Pembayaran Baru</h4>
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label htmlFor="paymentAmount" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Jumlah Pembayaran</label>
+                                                <input
+                                                    id="paymentAmount"
+                                                    type="number"
+                                                    value={newPaymentAmount}
+                                                    onChange={(e) => setNewPaymentAmount(Number(e.target.value))}
+                                                    className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100"
+                                                    placeholder="Masukkan jumlah"
+                                                />
+                                            </div>
+                                             <div>
+                                                <label htmlFor="paymentDate" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Tanggal Pembayaran</label>
+                                                <input
+                                                    id="paymentDate"
+                                                    type="date"
+                                                    value={newPaymentDate}
+                                                    onChange={(e) => setNewPaymentDate(e.target.value)}
+                                                    className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label htmlFor="paymentSource" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Sumber Dana</label>
+                                                <select
+                                                    id="paymentSource"
+                                                    value={newPaymentBankId}
+                                                    onChange={(e) => setNewPaymentBankId(e.target.value)}
+                                                    className="w-full pl-3 pr-10 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100 appearance-none" style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em' }}
+                                                >
+                                                    <option value="cash">Cash</option>
+                                                    {banks.map(bank => (
+                                                        <option key={bank.id} value={bank.id}>{bank.name} - {bank.account_holder}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            {kembalian > 0 && (
+                                                <div className="bg-green-50 dark:bg-green-900/40 p-4 rounded-lg border border-green-200 dark:border-green-800">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-base font-medium text-green-800 dark:text-green-200">Kembalian:</span>
+                                                        <span className="text-xl font-bold text-green-600 dark:text-green-400">{formatCurrency(kembalian)}</span>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-
-                            <div className="pt-6 border-t border-slate-200 dark:border-slate-700 flex-shrink-0 flex flex-col sm:flex-row gap-3">
-                                <button
-                                    onClick={handlePaymentSubmit}
-                                    disabled={isSubmitting}
-                                    className="w-full sm:w-auto flex-1 px-6 py-3 rounded-lg text-white bg-pink-600 hover:bg-pink-700 transition-colors disabled:bg-pink-300"
-                                >
-                                    {isSubmitting ? 'Menyimpan...' : 'Simpan Pembayaran'}
-                                </button>
-                                <button
-                                    onClick={handleCloseModal}
-                                    className="w-full sm:w-auto flex-1 px-6 py-3 rounded-lg text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 transition-colors"
-                                >
-                                    Batal
-                                </button>
+    
+                                <div className="pt-6 border-t border-slate-200 dark:border-slate-700 flex-shrink-0 flex flex-col sm:flex-row gap-3">
+                                    <button
+                                        onClick={handlePaymentSubmit}
+                                        disabled={isSubmitting}
+                                        className="w-full sm:w-auto flex-1 px-6 py-3 rounded-lg text-white bg-pink-600 hover:bg-pink-700 transition-colors disabled:bg-pink-300"
+                                    >
+                                        {isSubmitting ? 'Menyimpan...' : 'Simpan Pembayaran'}
+                                    </button>
+                                    <button
+                                        onClick={handleCloseModal}
+                                        className="w-full sm:w-auto flex-1 px-6 py-3 rounded-lg text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 transition-colors"
+                                    >
+                                        Batal
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )}
+                    );
+                })()}
                 
                 {isBulkPayModalOpen && (
                     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50" onClick={handleCloseBulkModal}>
@@ -735,6 +856,14 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
                                             {banks.map(bank => (<option key={bank.id} value={bank.id}>{bank.name} - {bank.account_holder}</option>))}
                                         </select>
                                     </div>
+                                    {kembalianBulk > 0 && (
+                                        <div className="bg-green-50 dark:bg-green-900/40 p-4 rounded-lg border border-green-200 dark:border-green-800">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-base font-medium text-green-800 dark:text-green-200">Kembalian:</span>
+                                                <span className="text-xl font-bold text-green-600 dark:text-green-400">{formatCurrency(kembalianBulk)}</span>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                              </div>
                              
@@ -743,6 +872,49 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
                                     {isSubmitting ? 'Menyimpan...' : 'Simpan Pembayaran'}
                                 </button>
                                 <button onClick={handleCloseBulkModal} className="w-full sm:w-auto flex-1 px-6 py-3 rounded-lg text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 transition-colors">
+                                    Batal
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {isCustomerReportModalOpen && (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50" onClick={() => setIsCustomerReportModalOpen(false)}>
+                        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg p-6 sm:p-8 m-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                            <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-6 flex-shrink-0">Laporan Pelanggan</h3>
+                            <div className="flex-1 overflow-y-auto -mr-4 pr-4 space-y-4">
+                                <div>
+                                    <label htmlFor="cr_customerId" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Pelanggan</label>
+                                    <select id="cr_customerId" value={customerReportFilters.customerId} onChange={(e) => setCustomerReportFilters(p => ({...p, customerId: e.target.value}))} className="w-full pl-3 pr-10 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100" required>
+                                        <option value="all" disabled>Pilih Pelanggan</option>
+                                        {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label htmlFor="cr_status" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Status Pembayaran</label>
+                                    <select id="cr_status" value={customerReportFilters.status} onChange={(e) => setCustomerReportFilters(p => ({...p, status: e.target.value}))} className="w-full pl-3 pr-10 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100">
+                                        <option value="all">Semua Status</option>
+                                        <option value="Lunas">Lunas</option>
+                                        <option value="Belum Lunas">Belum Lunas</option>
+                                    </select>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label htmlFor="cr_startDate" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Tanggal Mulai</label>
+                                        <input type="date" id="cr_startDate" value={customerReportFilters.startDate} onChange={(e) => setCustomerReportFilters(p => ({...p, startDate: e.target.value}))} className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100" />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="cr_endDate" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Tanggal Akhir</label>
+                                        <input type="date" id="cr_endDate" value={customerReportFilters.endDate} onChange={(e) => setCustomerReportFilters(p => ({...p, endDate: e.target.value}))} className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100" />
+                                    </div>
+                                </div>
+                            </div>
+                             <div className="pt-6 border-t border-slate-200 dark:border-slate-700 flex-shrink-0 flex flex-col sm:flex-row gap-3">
+                                <button onClick={handleGenerateCustomerReport} className="w-full sm:w-auto flex-1 px-6 py-3 rounded-lg text-white bg-pink-600 hover:bg-pink-700 transition-colors">
+                                    Cetak Laporan
+                                </button>
+                                <button onClick={() => setIsCustomerReportModalOpen(false)} className="w-full sm:w-auto flex-1 px-6 py-3 rounded-lg text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 transition-colors">
                                     Batal
                                 </button>
                             </div>

@@ -554,17 +554,13 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
                                     {formData.order_items.map((item, index) => (
                                         <div key={item.local_id} className="p-4 rounded-lg bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 space-y-4 relative">
                                             <h4 className="font-semibold text-pink-600">Detail Pesanan #{index + 1}</h4>
-                                            <div className="grid grid-cols-1 gap-4">
+                                            
                                                 <div>
                                                     <label htmlFor={`bahan_id-${index}`} className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Bahan</label>
                                                     <select name="bahan_id" id={`bahan_id-${index}`} value={item.bahan_id} onChange={(e) => handleItemChange(index, e)} required className="w-full pl-3 pr-10 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100 appearance-none" style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em' }}>
                                                         <option value={0} disabled>Pilih Bahan</option>
                                                         {bahanList.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                                                     </select>
-                                                </div>
-                                                <div>
-                                                    <label htmlFor={`deskripsi_pesanan-${index}`} className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Deskripsi Pesanan</label>
-                                                    <input type="text" name="deskripsi_pesanan" id={`deskripsi_pesanan-${index}`} value={item.deskripsi_pesanan || ''} onChange={(e) => handleItemChange(index, e)} className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100" />
                                                 </div>
                                                 <div>
                                                     <div className="flex justify-between items-center mb-1">
@@ -583,7 +579,11 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
                                                         {finishings.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
                                                     </select>
                                                 </div>
-                                            </div>
+                                                <div>
+                                                    <label htmlFor={`deskripsi_pesanan-${index}`} className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Deskripsi Pesanan</label>
+                                                    <input type="text" name="deskripsi_pesanan" id={`deskripsi_pesanan-${index}`} value={item.deskripsi_pesanan || ''} onChange={(e) => handleItemChange(index, e)} className="w-full pl-4 pr-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-slate-100" />
+                                                </div>
+                                            
                                             <div className="grid grid-cols-3 gap-4">
                                                 <div>
                                                     <label htmlFor={`panjang-${index}`} className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Panjang (m)</label>

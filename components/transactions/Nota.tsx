@@ -1,8 +1,5 @@
-
-
 import React, { forwardRef } from 'react';
 import { Customer, Bahan, Order, Employee, CustomerLevel, User as AuthUser, Bank, Finishing } from '../../lib/supabaseClient';
-import { text } from 'stream/consumers';
 
 interface NotaProps {
   order: Order;
@@ -50,6 +47,7 @@ const Nota = forwardRef<HTMLDivElement, NotaProps>(({
   const customer = customers.find(c => c.id === order.pelanggan_id);
   const totalTagihan = calculateTotal(order);
   const totalPaid = order.payments?.reduce((sum, p) => sum + p.amount, 0) || 0;
+  const sisaTagihan = Math.max(0, totalTagihan - totalPaid);
 
   const getEmployeeNameByUserId = (userId: string | null | undefined): string => {
     if (!userId) return 'N/A';
@@ -65,40 +63,31 @@ const Nota = forwardRef<HTMLDivElement, NotaProps>(({
     <div ref={ref} className="nota-dot-matrix bg-white text-black p-4 font-sans text-xs">
       
       {/* Header */}
-        
-      <div style={{ display: "flex", justifyContent: "space-between" }}>
-          {/* Logo kiri */}
-          <div style={{ width: "40%" }}>
-            <img
-              src="https://xkvgflhjcnkythytbkuj.supabase.co/storage/v1/object/public/publik/logo%20nala%20nota.svg"
-              alt="Logo"
-              style={{ width: "100%", height: "auto" }}
-            />
-          </div>
-
-          {/* Info kanan */}
-          <div
-            style={{
-              width: "60%",
-              textAlign: "right",
-              fontSize: "14px",
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "center",
-            }}
-          >
-            <div>Tanggal: {formatDate(order.tanggal)}</div>
-            <div>Kepada Yth,</div>
-            <div><b>{customer?.name || 'N/A'}</b></div>
-          </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", paddingBottom: '8px', borderBottom: '1px dashed black' }}>
+         <div style={{ width: "60%" }}>
+            <h1 style={{ fontSize: "18pt", fontWeight: "bold", margin: 0, padding: 0, lineHeight: 1 }}>
+                <span style={{ color: '#ec4899' }}>NALA</span>
+                <span style={{ color: '#1e293b' }}>MEDIA</span>
+                <span style={{ fontSize: "10pt", fontWeight: "normal", color: '#334155'}}> Digital Printing</span>
+            </h1>
+            <p style={{ fontSize: "8pt", marginTop: "4px", lineHeight: 1.2, margin: 0, color: '#475569' }}>
+                Jl. Prof. Moh. Yamin, Cerbonan, Karanganyar<br/>
+                Email: nalamedia.kra@gmail.com | Telp/WA: 0813-9872-7722
+            </p>
         </div>
 
-        <hr className="separator" />
+        <div style={{ width: "40%", textAlign: "right", fontSize: "10pt", lineHeight: 1.4 }}>
+            <p style={{ margin: 0 }}>Tanggal: {formatDate(order.tanggal)}</p>
+            <p style={{ margin: "4px 0 0 0" }}>Kepada Yth,</p>
+            <p style={{ fontWeight: "bold", margin: 0, color: '#1e293b' }}>{customer?.name || 'N/A'}</p>
+        </div>
+      </div>
+
 
         {/* Info Invoice */}
-      <div className="nota-info">
+      <div className="nota-info" style={{ marginTop: '8px' }}>
         <span>Kasir: {kasirName}</span>
-        <span>No Nota: {order.no_nota}</span>
+        <span>No Nota: <b>{order.no_nota}</b></span>
       </div>
 
       <hr className="separator" />
@@ -135,30 +124,7 @@ const Nota = forwardRef<HTMLDivElement, NotaProps>(({
             </div>
           );
         })}
-      </div>
-
-      {/* Riwayat Pembayaran */}
-      {order.payments?.length > 0 && (
-        <>
-          <hr className="separator" />
-          <div className="nota-payment-history mt-2">
-            <div className="font-bold">Riwayat Pembayaran:</div>
-            <div className="flex font-bold text-[9px]">
-              <div className="w-[35%]">Tanggal</div>
-              <div className="w-[35%]">Kasir</div>
-              <div className="w-[30%] text-right">Jumlah</div>
-            </div>
-            <hr className="my-1 border-dashed border-black" />
-            {order.payments.map((payment, index) => (
-              <div key={index} className="flex items-start py-0.5 text-[9px]">
-                <div className="w-[35%]">{formatDate(payment.payment_date)}</div>
-                <div className="w-[35%] capitalize">{getEmployeeNameByUserId(payment.kasir_id)}</div>
-                <div className="w-[30%] text-right">{formatCurrencyDotMatrix(payment.amount)}</div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
+      </div>     
 
       <hr className="separator" />
 
@@ -183,7 +149,7 @@ const Nota = forwardRef<HTMLDivElement, NotaProps>(({
       {/* Sisa */}
       <div className="nota-info">
         <span>Pembayaran selain Nomor Rekening di atas bukan tanggung jawab kami.</span>
-        <span className="font-bold">Sisa : {formatCurrencyDotMatrix(totalTagihan - totalPaid)}</span>    
+        <span className="font-bold">Sisa : {formatCurrencyDotMatrix(sisaTagihan)}</span>    
       </div>
 
       {/* Hormat Kami */}

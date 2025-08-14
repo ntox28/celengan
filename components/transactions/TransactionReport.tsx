@@ -1,4 +1,3 @@
-
 import React, { forwardRef } from 'react';
 import { Order, Customer, Bahan } from '../../lib/supabaseClient';
 
@@ -31,12 +30,12 @@ const TransactionReport = forwardRef<HTMLDivElement, TransactionReportProps>(
     }
     
     const reportDate = new Date().toLocaleDateString('id-ID', {
-        day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+        day: 'numeric', month: 'long', year: 'numeric'
     });
 
     const totalRevenue = orders.reduce((sum, order) => sum + calculateTotal(order), 0);
     const totalPaid = orders.flatMap(o => o.payments).reduce((sum, p) => sum + p.amount, 0);
-    const totalReceivables = totalRevenue - totalPaid;
+    const totalReceivables = Math.max(0, totalRevenue - totalPaid);
 
     return (
       <div ref={ref} className="bg-white text-black p-4 font-sans text-xs">
@@ -75,21 +74,21 @@ const TransactionReport = forwardRef<HTMLDivElement, TransactionReportProps>(
         
         <div className="mt-4 flex justify-end text-xs">
             <div className="w-1/3 min-w-[250px]">
-                <h3 className="font-bold text-sm mb-2">Ringkasan</h3>
+                <h3 className="font-bold text-sm mb-2">Rincian Pembayaran</h3>
                 <div className="flex justify-between">
-                    <span>Total Transaksi:</span>
+                    <span>Jumlah Nota :</span>
                     <span className="font-bold">{orders.length}</span>
                 </div>
                 <div className="flex justify-between">
-                    <span>Total Penjualan:</span>
+                    <span>Total Tagihan :</span>
                     <span className="font-bold">{formatCurrency(totalRevenue)}</span>
                 </div>
                 <div className="flex justify-between">
-                    <span>Total Terbayar:</span>
+                    <span>DP/Dibayar :</span>
                     <span className="font-bold">{formatCurrency(totalPaid)}</span>
                 </div>
                  <div className="flex justify-between">
-                    <span>Total Piutang:</span>
+                    <span><b>Sisa :</b></span>
                     <span className="font-bold">{formatCurrency(totalReceivables)}</span>
                 </div>
             </div>
