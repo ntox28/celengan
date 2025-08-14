@@ -192,6 +192,7 @@ const DataManagement: React.FC = () => {
                         harga_grosir: Number(row['Harga Grosir'] || 0),
                         harga_reseller: Number(row['Harga Reseller'] || 0),
                         harga_corporate: Number(row['Harga Corporate'] || 0),
+                        stock_qty: 0,
                     })).filter(b => b.name);
                     if(bahanPayload.length > 0) {
                         const { error } = await supabase.from('bahan').insert(bahanPayload);

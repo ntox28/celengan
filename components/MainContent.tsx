@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import CustomerManagement from './customers/CustomerManagement';
 import { EmployeePosition, User as AuthUser, YouTubePlaylistItem } from '../lib/supabaseClient';
@@ -147,6 +146,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     addCustomer={addCustomer}
                     bahanList={bahanList} 
                     orders={orders} 
+                    employees={employees}
                     loggedInUser={user} 
                     addOrder={addOrder} 
                     updateOrder={updateOrder} 
@@ -180,6 +180,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
             bahanList={bahanList}
             finishings={finishings}
             employees={employees}
+            loggedInUser={user}
             updateOrderStatus={updateOrderStatus}
         />;
       case 'Transaksi':

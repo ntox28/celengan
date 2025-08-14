@@ -13,7 +13,7 @@ interface ProductionManagementProps {
     finishings: Finishing[];
     employees: Employee[];
     loggedInUser: AuthUser;
-    updateOrderStatus: (orderId: number, status: OrderStatus, pelaksana_id?: string | null) => void;
+    updateOrderStatus: (orderId: number, status: OrderStatus, userId?: string | null) => void;
     updateOrderItemStatus: (orderId: number, itemId: number, status: ProductionStatus) => void;
 }
 
@@ -105,7 +105,7 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({ orders, cus
     const handleTakeJob = (orderId: number) => {
         const order = orders.find(o => o.id === orderId);
         if (order) {
-            updateOrderStatus(orderId, 'Waiting', loggedInUser.id);
+            updateOrderStatus(orderId, 'Proses', loggedInUser.id);
             addToast(`Pekerjaan untuk Nota ${order.no_nota} telah diambil.`, 'success');
         }
     };
@@ -113,7 +113,7 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({ orders, cus
     const handleReleaseJob = (orderId: number) => {
         const order = orders.find(o => o.id === orderId);
         if (order) {
-            updateOrderStatus(orderId, 'Waiting', ''); // Set pelaksana_id to empty or null
+            updateOrderStatus(orderId, 'Waiting', ''); // Set status to 'Waiting' and pelaksana_id to empty or null
             addToast(`Pekerjaan untuk Nota ${order.no_nota} telah dilepaskan.`, 'info');
         }
     };
@@ -121,21 +121,6 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({ orders, cus
 
     const handleStatusChange = (orderId: number, itemId: number, newStatus: ProductionStatus) => {
         updateOrderItemStatus(orderId, itemId, newStatus);
-    };
-
-    const getOverallOrderStatus = (order: Order): ProductionStatus => {
-        if (!order.order_items || order.order_items.length === 0) {
-            return 'Belum Dikerjakan';
-        }
-        const statuses = order.order_items.map(item => item.status_produksi);
-
-        if (statuses.every(s => s === 'Ready')) {
-            return 'Ready';
-        }
-        if (statuses.some(s => s === 'Proses')) {
-            return 'Proses';
-        }
-        return 'Belum Dikerjakan';
     };
 
     return (
@@ -165,10 +150,10 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({ orders, cus
                     </thead>
                     <tbody className="divide-y divide-slate-200 dark:divide-slate-700 md:divide-y-0">
                         {currentOrders.map((order) => {
-                           const overallStatus = getOverallOrderStatus(order);
                            const notaBadgeColor = 
-                                overallStatus === 'Ready' ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' :
-                                overallStatus === 'Proses' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300' :
+                                order.status_pesanan === 'Ready' ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' :
+                                order.status_pesanan === 'Proses' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300' :
+                                order.status_pesanan === 'Waiting' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300' :
                                 'bg-gray-100 text-gray-800 dark:bg-slate-600 dark:text-slate-200';
 
                            return (
@@ -184,12 +169,12 @@ const ProductionManagement: React.FC<ProductionManagementProps> = ({ orders, cus
                                 <td data-label="Tanggal" className="px-6 py-4">{formatDate(order.tanggal)}</td>
                                 <td data-label="Pelanggan" className="px-6 py-4">{getCustomerName(order.pelanggan_id)}</td>
                                 <td data-label="Pelaksana" className="px-6 py-4">
-                                    {order.pelaksana_id ? (
+                                    {order.pelaksana_produksi_id ? (
                                         <div className="flex items-center justify-end md:justify-start gap-2">
                                             <span className="font-semibold capitalize text-slate-800 dark:text-slate-200">
-                                                {getPelaksanaFirstName(order.pelaksana_id)}
+                                                {getPelaksanaFirstName(order.pelaksana_produksi_id)}
                                             </span>
-                                            {order.pelaksana_id === loggedInUser.id && (
+                                            {order.pelaksana_produksi_id === loggedInUser.id && (
                                                 <button 
                                                     onClick={() => handleReleaseJob(order.id)} 
                                                     className="bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-slate-200 font-semibold py-1 px-3 rounded-lg text-xs transition-colors"

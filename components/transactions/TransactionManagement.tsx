@@ -52,7 +52,7 @@ const getOrderStatusColor = (status: OrderStatus) => {
         'Delivered': 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300',
         'Ready': 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/50 dark:text-cyan-300',
         'Proses': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300',
-        'Waiting': 'bg-gray-100 text-gray-800 dark:bg-slate-600 dark:text-slate-200',
+        'Waiting': 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300',
         'Pending': 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'
     };
     return colors[status];

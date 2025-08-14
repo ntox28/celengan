@@ -95,11 +95,12 @@ const Nota = forwardRef<HTMLDivElement, NotaProps>(({
       {/* Tabel Item Nota */}
       <div className="nota-items">
         <div className="flex font-bold">
-          <div className="w-[10%] text-center pr-1">No.</div>
-          <div className="w-[35%] text-center pr-1">Deskripsi</div>
-          <div className="w-[20%] text-center pr-1">Bahan</div>
+          <div className="w-[5%] text-center pr-1">No.</div>
+          <div className="w-[30%] text-center pr-1">Deskripsi</div>
+          <div className="w-[15%] text-center pr-1">Bahan</div>
           <div className="w-[15%] text-center pr-1">Ukuran</div>
-          <div className="w-[20%] text-right">Total Harga</div>
+          <div className="w-[10%] text-center pr-1">Qty</div>
+          <div className="w-[25%] text-right">Total Harga</div>
         </div>
         <hr className="separator" />
 
@@ -114,13 +115,14 @@ const Nota = forwardRef<HTMLDivElement, NotaProps>(({
 
           return (
             <div key={item.id} className="flex items-start py-0.5">
-              <div className="w-[10%] text-center pr-1">{index + 1}.</div>
-              <div className="w-[35%] text-center pr-1 break-words">{item.deskripsi_pesanan || '-'}</div>
-              <div className="w-[20%] text-center pr-1 break-words">{bahan.name}</div>
+              <div className="w-[5%] text-center pr-1">{index + 1}.</div>
+              <div className="w-[30%] text-center pr-1 break-words">{item.deskripsi_pesanan || '-'}</div>
+              <div className="w-[15%] text-center pr-1 break-words">{bahan.name}</div>
               <div className="w-[15%] text-center pr-1">
                 {(item.panjang || 0) > 0 ? `${item.panjang}m x ${item.lebar}m` : '-'}
               </div>
-              <div className="w-[20%] text-right">{formatCurrencyDotMatrix(jumlah)}</div>
+              <div className="w-[10%] text-center pr-1">{item.qty}</div>
+              <div className="w-[25%] text-right">{formatCurrencyDotMatrix(jumlah)}</div>
             </div>
           );
         })}

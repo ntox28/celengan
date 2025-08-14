@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Customer, Bahan, Order, OrderItem, Finishing, Employee, OrderStatus } from '../../lib/supabaseClient';
+import { Customer, Bahan, Order, OrderItem, Finishing, Employee, OrderStatus, User as AuthUser } from '../../lib/supabaseClient';
 import ChevronDownIcon from '../icons/ChevronDownIcon';
 import Pagination from '../Pagination';
 import FilterBar from '../FilterBar';
@@ -12,7 +12,8 @@ interface WarehouseManagementProps {
     bahanList: Bahan[];
     finishings: Finishing[];
     employees: Employee[];
-    updateOrderStatus: (orderId: number, status: OrderStatus) => void;
+    loggedInUser: AuthUser;
+    updateOrderStatus: (orderId: number, status: OrderStatus, userId?: string | null) => void;
 }
 
 const formatDate = (isoDate: string) => {
@@ -23,7 +24,7 @@ const formatDate = (isoDate: string) => {
     });
 };
 
-const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ orders, customers, bahanList, finishings, employees, updateOrderStatus }) => {
+const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ orders, customers, bahanList, finishings, employees, loggedInUser, updateOrderStatus }) => {
     const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [activeTab, setActiveTab] = useState<'ready' | 'delivered'>('ready');
@@ -70,9 +71,11 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ orders, custo
         });
     };
 
-    const getCustomerName = (id: number | '' | undefined) => {
-        return customers.find(c => c.id === id)?.name || 'N/A';
-    }
+    const getEmployeeName = (userId: string | null): string => {
+        if (!userId) return 'N/A';
+        const employee = employees.find(e => e.user_id === userId);
+        return employee ? employee.name.split(' ')[0] : 'User';
+    };
 
     const toggleExpand = (orderId: number) => {
         setExpandedOrderId(expandedOrderId === orderId ? null : orderId);
@@ -80,7 +83,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ orders, custo
 
     const handleMarkAsDelivered = (orderId: number) => {
         if (window.confirm('Apakah Anda yakin barang ini sudah diambil oleh pelanggan?')) {
-            updateOrderStatus(orderId, 'Delivered');
+            updateOrderStatus(orderId, 'Delivered', loggedInUser.id);
         }
     };
     
@@ -124,8 +127,8 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ orders, custo
                     <thead className="text-xs text-slate-500 dark:text-slate-400 uppercase bg-slate-50 dark:bg-slate-700/50 sticky top-0 backdrop-blur-sm">
                         <tr>
                             <th scope="col" className="px-6 py-3">No. Nota</th>
-                            <th scope="col" className="px-6 py-3">Tanggal Order</th>
                             <th scope="col" className="px-6 py-3">Pelanggan</th>
+                            {activeTab === 'delivered' && <th scope="col" className="px-6 py-3">Dikirim Oleh</th>}
                             <th scope="col" className="px-6 py-3 text-center">Aksi</th>
                             <th scope="col" className="px-6 py-3 text-center">Detail Item</th>
                         </tr>
@@ -135,8 +138,8 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ orders, custo
                            <React.Fragment key={order.id}>
                             <tr className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors duration-200">
                                 <th scope="row" className="px-6 py-4 font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap">{order.no_nota}</th>
-                                <td data-label="Tanggal Order" className="px-6 py-4">{formatDate(order.tanggal)}</td>
-                                <td data-label="Pelanggan" className="px-6 py-4">{getCustomerName(order.pelanggan_id)}</td>
+                                <td data-label="Pelanggan" className="px-6 py-4">{customers.find(c => c.id === order.pelanggan_id)?.name || 'N/A'}</td>
+                                {activeTab === 'delivered' && <td data-label="Dikirim Oleh" className="px-6 py-4 capitalize">{getEmployeeName(order.pelaksana_delivery_id)}</td>}
                                 <td data-label="Aksi" className="px-6 py-4 text-center space-x-2">
                                     {activeTab === 'ready' ? (
                                         <>

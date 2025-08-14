@@ -1,5 +1,3 @@
-
-
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase, Customer, Employee, Bahan, Expense, Order, OrderItem, Payment, User, Bank, Asset, Debt, NotaSetting, Supplier, StockMovement, Finishing, OrderStatus, ProductionStatus, OrderRow, Database, CustomerLevel, PaymentStatus, DisplaySettings, YouTubePlaylistItem } from '../lib/supabaseClient';
 import { useToast } from './useToast';
@@ -224,21 +222,23 @@ export const useAppData = (user: User | undefined) => {
         };
     }, [user, fetchFullOrder]);
     
-    const performDbOperation = async (operation: Promise<{ error: any }>, successMessage: string) => {
+    const performDbOperation = async (operation: PromiseLike<{ error: any | null }>, successMessage: string) => {
         const { error } = await operation;
         if (error) {
             addToast(`Gagal: ${error.message}`, 'error');
             throw error;
         }
-        addToast(successMessage, 'success');
+        if (successMessage) {
+            addToast(successMessage, 'success');
+        }
     };
 
     // --- CRUD functions ---
-    const addCustomer = async (data: Omit<Customer, 'id' | 'created_at'>) => {
+    const addCustomer = async (data: Omit<Customer, 'id' | 'created_at'>): Promise<Customer> => {
        const { data: newRecord, error } = await supabase.from('customers').insert(data).select().single();
        if (error) { addToast(`Gagal: ${error.message}`, 'error'); throw error; }
        addToast('Pelanggan berhasil ditambahkan.', 'success');
-       return newRecord;
+       return newRecord as Customer;
     };
     const updateCustomer = (id: number, data: Partial<Omit<Customer, 'id'|'created_at'>>) => performDbOperation(supabase.from('customers').update(data).eq('id', id), 'Pelanggan berhasil diperbarui.');
     const deleteCustomer = (id: number) => performDbOperation(supabase.from('customers').delete().eq('id', id), 'Pelanggan berhasil dihapus.');
@@ -261,7 +261,7 @@ export const useAppData = (user: User | undefined) => {
         const { data: newRecord, error } = await supabase.from('bahan').insert({...data, stock_qty: 0}).select().single();
         if (error) { addToast(`Gagal: ${error.message}`, 'error'); throw error; }
         addToast('Bahan berhasil ditambahkan.', 'success');
-        return newRecord;
+        return newRecord as Bahan;
     };
     const updateBahan = (id: number, data: Partial<Omit<Bahan, 'id'|'created_at'>>) => performDbOperation(supabase.from('bahan').update(data).eq('id', id), 'Bahan berhasil diperbarui.');
     const deleteBahan = (id: number) => performDbOperation(supabase.from('bahan').delete().eq('id', id), 'Bahan berhasil dihapus.');
@@ -270,7 +270,7 @@ export const useAppData = (user: User | undefined) => {
         const { data: newRecord, error } = await supabase.from('banks').insert(data).select().single();
         if (error) { addToast(`Gagal: ${error.message}`, 'error'); throw error; }
         addToast('Sumber dana berhasil ditambahkan.', 'success');
-        return newRecord;
+        return newRecord as Bank;
     };
     const updateBank = (id: number, data: Partial<Omit<Bank, 'id'|'created_at'>>) => performDbOperation(supabase.from('banks').update(data).eq('id', id), 'Sumber dana berhasil diperbarui.');
     const deleteBank = (id: number) => performDbOperation(supabase.from('banks').delete().eq('id', id), 'Sumber dana berhasil dihapus.');
@@ -279,7 +279,7 @@ export const useAppData = (user: User | undefined) => {
         const { data: newRecord, error } = await supabase.from('assets').insert(data).select().single();
         if (error) { addToast(`Gagal: ${error.message}`, 'error'); throw error; }
         addToast('Aset berhasil ditambahkan.', 'success');
-        return newRecord;
+        return newRecord as Asset;
     };
     const updateAsset = (id: number, data: Partial<Omit<Asset, 'id'|'created_at'|'is_dynamic'>>) => performDbOperation(supabase.from('assets').update(data).eq('id', id), 'Aset berhasil diperbarui.');
     const deleteAsset = (id: number) => performDbOperation(supabase.from('assets').delete().eq('id', id), 'Aset berhasil dihapus.');
@@ -288,7 +288,7 @@ export const useAppData = (user: User | undefined) => {
         const { data: newRecord, error } = await supabase.from('debts').insert(data).select().single();
         if (error) { addToast(`Gagal: ${error.message}`, 'error'); throw error; }
         addToast('Data hutang berhasil ditambahkan.', 'success');
-        return newRecord;
+        return newRecord as Debt;
     };
     const updateDebt = (id: number, data: Partial<Omit<Debt, 'id'|'created_at'>>) => performDbOperation(supabase.from('debts').update(data).eq('id', id), 'Data hutang berhasil diperbarui.');
     const deleteDebt = (id: number) => performDbOperation(supabase.from('debts').delete().eq('id', id), 'Data hutang berhasil dihapus.');
@@ -297,7 +297,7 @@ export const useAppData = (user: User | undefined) => {
         const { data: newRecord, error } = await supabase.from('suppliers').insert(data).select().single();
         if (error) { addToast(`Gagal: ${error.message}`, 'error'); throw error; }
         addToast('Suplier berhasil ditambahkan.', 'success');
-        return newRecord;
+        return newRecord as Supplier;
     };
     const updateSupplier = (id: number, data: Partial<Omit<Supplier, 'id'|'created_at'>>) => performDbOperation(supabase.from('suppliers').update(data).eq('id', id), 'Suplier berhasil diperbarui.');
     const deleteSupplier = (id: number) => performDbOperation(supabase.from('suppliers').delete().eq('id', id), 'Suplier berhasil dihapus.');
@@ -306,7 +306,7 @@ export const useAppData = (user: User | undefined) => {
         const { data: newRecord, error } = await supabase.from('finishings').insert(data).select().single();
         if (error) { addToast(`Gagal: ${error.message}`, 'error'); throw error; }
         addToast('Finishing berhasil ditambahkan.', 'success');
-        return newRecord;
+        return newRecord as Finishing;
     };
     const updateFinishing = (id: number, data: Partial<Omit<Finishing, 'id'|'created_at'>>) => performDbOperation(supabase.from('finishings').update(data).eq('id', id), 'Finishing berhasil diperbarui.');
     const deleteFinishing = (id: number) => performDbOperation(supabase.from('finishings').delete().eq('id', id), 'Finishing berhasil dihapus.');
@@ -328,7 +328,7 @@ export const useAppData = (user: User | undefined) => {
         if (!bahan) throw new Error('Bahan not found');
         const currentStock = bahan.stock_qty || 0;
         const difference = newStockQty - currentStock;
-        if (Math.abs(difference) < 0.001) return;
+        if (Math.abs(difference) < 0.001) return Promise.resolve();
         return addStockMovement({ bahan_id: bahanId, type: difference > 0 ? 'in' : 'out', quantity: Math.abs(difference), supplier_id: null, notes });
     };
 
@@ -346,8 +346,8 @@ export const useAppData = (user: User | undefined) => {
     
     const updateNotaSetting = async (settings: NotaSetting) => {
         await Promise.all([
-            supabase.from('settings').update({ value: settings.prefix }).eq('key', 'nota_prefix'),
-            supabase.from('settings').update({ value: settings.start_number_str }).eq('key', 'nota_last_number')
+            performDbOperation(supabase.from('settings').update({ value: settings.prefix }).eq('key', 'nota_prefix'), ''),
+            performDbOperation(supabase.from('settings').update({ value: settings.start_number_str }).eq('key', 'nota_last_number'), '')
         ]);
         setNotaSetting(settings);
         addToast('Pengaturan nota berhasil diperbarui.', 'success');
@@ -426,12 +426,121 @@ export const useAppData = (user: User | undefined) => {
         }
         addToast(`Order berhasil diperbarui.`, 'success');
     };
-    const deleteOrder = (id: number) => performDbOperation(supabase.from('orders').delete().eq('id', id), 'Order berhasil dihapus.');
+
+    const deleteOrder = async (id: number) => {
+        let orderToDelete: Order | null | undefined = orders.find(o => o.id === id);
     
-    const addPaymentToOrder = (orderId: number, paymentData: Omit<Payment, 'id'|'created_at'|'order_id'>) => performDbOperation(
-        supabase.from('payments').insert({ ...paymentData, order_id: orderId }),
-        `Pembayaran ${formatCurrency(paymentData.amount)} berhasil ditambahkan.`
-    );
+        if (!orderToDelete) {
+            const fetchedOrder = await fetchFullOrder(id);
+            if(!fetchedOrder) {
+                addToast(`Order dengan ID ${id} tidak ditemukan untuk dihapus.`, 'error');
+                throw new Error('Order not found for deletion.');
+            }
+            orderToDelete = fetchedOrder;
+        }
+    
+        // If the order status indicates stock was deducted, we must restore it.
+        if (orderToDelete && ['Waiting', 'Proses', 'Ready', 'Delivered'].includes(orderToDelete.status_pesanan)) {
+            addToast(`Mengembalikan stok untuk nota ${orderToDelete.no_nota}...`, 'info');
+            try {
+                for (const item of orderToDelete.order_items) {
+                    const finishing = finishings.find(f => f.id === item.finishing_id);
+                    const panjang_tambahan = finishing?.panjang_tambahan || 0;
+                    const lebar_tambahan = finishing?.lebar_tambahan || 0;
+                    const totalPanjang = (item.panjang || 0) + panjang_tambahan;
+                    const totalLebar = (item.lebar || 0) + lebar_tambahan;
+                    const quantityToRestore = (totalPanjang * totalLebar) * item.qty;
+                    if (quantityToRestore > 0) {
+                        await addStockMovement({
+                            bahan_id: item.bahan_id,
+                            type: 'in',
+                            quantity: quantityToRestore,
+                            supplier_id: null,
+                            notes: `Stok dikembalikan dari order ${orderToDelete.no_nota} yang dihapus`
+                        });
+                    }
+                }
+                addToast(`Stok untuk nota ${orderToDelete.no_nota} berhasil dikembalikan.`, 'success');
+            } catch (stockError: any) {
+                addToast(`Gagal mengembalikan stok: ${stockError.message}. Penghapusan order dibatalkan.`, 'error');
+                return; // Abort deletion if stock restoration fails
+            }
+        }
+    
+        // Now, perform the actual deletion.
+        await performDbOperation(supabase.from('orders').delete().eq('id', id), 'Order berhasil dihapus.');
+    };
+    
+    const addPaymentToOrder = async (orderId: number, paymentData: Omit<Payment, 'id' | 'created_at' | 'order_id'>) => {
+        const originalOrders = [...orders];
+        const orderIndex = originalOrders.findIndex(o => o.id === orderId);
+        if (orderIndex === -1) {
+            addToast('Order tidak ditemukan.', 'error');
+            return;
+        }
+    
+        const originalOrder = originalOrders[orderIndex];
+        const totalBill = calculateOrderTotal(originalOrder, customers, bahanList);
+        const totalPaid = originalOrder.payments.reduce((sum, p) => sum + p.amount, 0);
+        const balanceDue = Math.max(0, totalBill - totalPaid);
+    
+        if (balanceDue <= 0.01) {
+            addToast('Tagihan ini sudah lunas.', 'info');
+            return;
+        }
+        
+        const amountToRecord = Math.min(paymentData.amount, balanceDue);
+        const change = paymentData.amount - amountToRecord;
+        
+        // Optimistic Update
+        const newPayment: Payment = {
+            ...paymentData,
+            id: Date.now(), // Temporary ID for React key
+            created_at: new Date().toISOString(),
+            order_id: orderId,
+            amount: amountToRecord
+        };
+        
+        const updatedOrder = JSON.parse(JSON.stringify(originalOrder));
+        updatedOrder.payments.push(newPayment);
+        const newTotalPaid = updatedOrder.payments.reduce((sum: number, p: Payment) => sum + p.amount, 0);
+        const newStatus: PaymentStatus = newTotalPaid >= totalBill - 0.01 ? 'Lunas' : 'Belum Lunas';
+        const statusChanged = updatedOrder.status_pembayaran !== newStatus;
+        updatedOrder.status_pembayaran = newStatus;
+        
+        const newOrders = [...originalOrders];
+        newOrders[orderIndex] = updatedOrder;
+        setOrders(newOrders);
+    
+        try {
+            const { error: paymentError } = await supabase.from('payments').insert({ 
+                order_id: orderId,
+                amount: amountToRecord,
+                payment_date: paymentData.payment_date,
+                kasir_id: paymentData.kasir_id,
+                bank_id: paymentData.bank_id,
+            });
+    
+            if (paymentError) throw paymentError;
+    
+            addToast(`Pembayaran ${formatCurrency(amountToRecord)} berhasil.` + (change > 0.01 ? ` Kembalian: ${formatCurrency(change)}` : ''), 'success');
+            
+            if (statusChanged) {
+                 const { error: orderError } = await supabase.from('orders').update({ status_pembayaran: newStatus }).eq('id', orderId);
+                 if (orderError) throw orderError;
+                 addToast(`Status pembayaran Nota ${originalOrder.no_nota} diubah menjadi ${newStatus}.`, 'success');
+            }
+    
+            const finalOrderState = await fetchFullOrder(orderId);
+            if (finalOrderState) {
+                setOrders(prev => prev.map(o => o.id === orderId ? finalOrderState : o));
+            }
+    
+        } catch (error: any) {
+            addToast(`Gagal menambah pembayaran: ${error.message}`, 'error');
+            setOrders(originalOrders); // Rollback
+        }
+    };
     
     const addBulkPaymentToOrders = async (
         paymentData: Omit<Payment, 'id'|'created_at'|'order_id'|'amount'>,
@@ -454,46 +563,135 @@ export const useAppData = (user: User | undefined) => {
             remainingPayment -= amountToPay;
         }
     
-        if (paymentInserts.length === 0) { addToast('Tidak ada pembayaran yang dapat diproses.', 'info'); return; }
+        if (paymentInserts.length === 0) { 
+            addToast('Tidak ada pembayaran yang dapat diproses.', 'info'); 
+            return; 
+        }
+        
         await performDbOperation(supabase.from('payments').insert(paymentInserts), `${paymentInserts.length} pembayaran berhasil diproses.`);
-    };
 
-    const updateOrderStatus = async (orderId: number, status: OrderStatus, pelaksana_id: string | null = null) => {
-        const fullOrder = orders.find(o => o.id === orderId);
-        if (!fullOrder) return;
-    
-        const payload: Database['public']['Tables']['orders']['Update'] = { status_pesanan: status };
-        if (pelaksana_id !== null) payload.pelaksana_id = pelaksana_id === '' ? null : pelaksana_id;
-    
-        await performDbOperation(supabase.from('orders').update(payload).eq('id', orderId), `Status pesanan ${fullOrder.no_nota} diubah menjadi ${status}.`);
-    
-        if (fullOrder.status_pesanan === 'Pending' && status === 'Waiting') {
-            for (const item of fullOrder.order_items) {
-                const finishing = finishings.find(f => f.id === item.finishing_id);
-                const panjang_tambahan = finishing?.panjang_tambahan || 0;
-                const lebar_tambahan = finishing?.lebar_tambahan || 0;
-                const totalPanjang = (item.panjang || 0) + panjang_tambahan;
-                const totalLebar = (item.lebar || 0) + lebar_tambahan;
-                const quantityToDeduct = (totalPanjang * totalLebar) * item.qty;
-                if (quantityToDeduct > 0) await addStockMovement({ bahan_id: item.bahan_id, type: 'out', quantity: quantityToDeduct, supplier_id: null, notes: `Pemakaian untuk order ${fullOrder.no_nota}` });
+        const affectedOrderIds = [...new Set(paymentInserts.map(p => p.order_id))];
+
+        for (const orderId of affectedOrderIds) {
+            const fullOrder = await fetchFullOrder(orderId);
+            if (fullOrder) {
+                const totalBill = calculateOrderTotal(fullOrder, customers, bahanList);
+                const totalPaid = fullOrder.payments.reduce((sum, p) => sum + p.amount, 0);
+                const newStatus: PaymentStatus = totalPaid >= totalBill ? 'Lunas' : 'Belum Lunas';
+
+                if (newStatus !== fullOrder.status_pembayaran) {
+                    await performDbOperation(
+                        supabase.from('orders').update({ status_pembayaran: newStatus }).eq('id', orderId),
+                        `Status Nota ${fullOrder.no_nota} menjadi ${newStatus}.`
+                    );
+                }
             }
-            addToast(`Stok bahan untuk nota ${fullOrder.no_nota} telah dikurangi.`, 'info');
-        } else if (['Waiting', 'Proses'].includes(fullOrder.status_pesanan) && status === 'Pending') {
-             for (const item of fullOrder.order_items) {
-                const finishing = finishings.find(f => f.id === item.finishing_id);
-                const panjang_tambahan = finishing?.panjang_tambahan || 0;
-                const lebar_tambahan = finishing?.lebar_tambahan || 0;
-                const totalPanjang = (item.panjang || 0) + panjang_tambahan;
-                const totalLebar = (item.lebar || 0) + lebar_tambahan;
-                const quantityToRestore = (totalPanjang * totalLebar) * item.qty;
-                if (quantityToRestore > 0) await addStockMovement({ bahan_id: item.bahan_id, type: 'in', quantity: quantityToRestore, supplier_id: null, notes: `Pembatalan proses untuk order ${fullOrder.no_nota}` });
-            }
-            addToast(`Stok bahan untuk nota ${fullOrder.no_nota} telah dikembalikan.`, 'info');
         }
     };
 
-    const updateOrderItemStatus = (orderId: number, itemId: number, status: ProductionStatus) => {
-        performDbOperation(supabase.from('order_items').update({ status_produksi: status }).eq('id', itemId), `Status item berhasil diubah menjadi "${status}".`);
+    const updateOrderStatus = async (orderId: number, status: OrderStatus, userId: string | null = null) => {
+        const originalOrders = [...orders];
+        const orderIndex = originalOrders.findIndex(o => o.id === orderId);
+        if (orderIndex === -1) return;
+    
+        const originalOrder = originalOrders[orderIndex];
+    
+        // Optimistic update
+        const updatedOrder = { ...originalOrder, status_pesanan: status };
+        if (userId !== null) {
+            if (status === 'Proses') updatedOrder.pelaksana_produksi_id = userId;
+            if (status === 'Delivered') updatedOrder.pelaksana_delivery_id = userId;
+            if (status === 'Waiting' && userId === '') updatedOrder.pelaksana_produksi_id = null;
+        }
+        
+        const newOrders = [...originalOrders];
+        newOrders[orderIndex] = updatedOrder;
+        setOrders(newOrders);
+    
+        try {
+            const payload: Partial<OrderRow> = { status_pesanan: status };
+             if (userId !== null) {
+                if (status === 'Proses') payload.pelaksana_produksi_id = userId;
+                if (status === 'Delivered') payload.pelaksana_delivery_id = userId;
+                if (status === 'Waiting' && userId === '') payload.pelaksana_produksi_id = null;
+                // For cancellation back to Pending
+                if (status === 'Pending' && ['Proses', 'Waiting'].includes(originalOrder.status_pesanan)) payload.pelaksana_produksi_id = null;
+            }
+    
+            const { error } = await supabase.from('orders').update(payload).eq('id', orderId);
+            if (error) throw error;
+            addToast(`Status pesanan ${originalOrder.no_nota} diubah menjadi ${status}.`, 'success');
+    
+            // Handle stock adjustments AFTER successful update
+            if (originalOrder.status_pesanan === 'Pending' && status === 'Waiting') {
+                for (const item of originalOrder.order_items) {
+                    const finishing = finishings.find(f => f.id === item.finishing_id);
+                    const panjang_tambahan = finishing?.panjang_tambahan || 0;
+                    const lebar_tambahan = finishing?.lebar_tambahan || 0;
+                    const totalPanjang = (item.panjang || 0) + panjang_tambahan;
+                    const totalLebar = (item.lebar || 0) + lebar_tambahan;
+                    const quantityToDeduct = (totalPanjang * totalLebar) * item.qty;
+                    if (quantityToDeduct > 0) await addStockMovement({ bahan_id: item.bahan_id, type: 'out', quantity: quantityToDeduct, supplier_id: null, notes: `Pemakaian untuk order ${originalOrder.no_nota}` });
+                }
+                addToast(`Stok bahan untuk nota ${originalOrder.no_nota} telah dikurangi.`, 'info');
+            } else if ((originalOrder.status_pesanan === 'Proses' || originalOrder.status_pesanan === 'Waiting') && status === 'Pending') {
+                 for (const item of originalOrder.order_items) {
+                    const finishing = finishings.find(f => f.id === item.finishing_id);
+                    const panjang_tambahan = finishing?.panjang_tambahan || 0;
+                    const lebar_tambahan = finishing?.lebar_tambahan || 0;
+                    const totalPanjang = (item.panjang || 0) + panjang_tambahan;
+                    const totalLebar = (item.lebar || 0) + lebar_tambahan;
+                    const quantityToRestore = (totalPanjang * totalLebar) * item.qty;
+                    if (quantityToRestore > 0) await addStockMovement({ bahan_id: item.bahan_id, type: 'in', quantity: quantityToRestore, supplier_id: null, notes: `Pembatalan proses untuk order ${originalOrder.no_nota}` });
+                }
+                addToast(`Stok bahan untuk nota ${originalOrder.no_nota} telah dikembalikan.`, 'info');
+            }
+    
+        } catch (error: any) {
+            addToast(`Gagal mengubah status pesanan: ${error.message}`, 'error');
+            // Rollback
+            setOrders(originalOrders);
+        }
+    };
+
+    const updateOrderItemStatus = async (orderId: number, itemId: number, status: ProductionStatus) => {
+        const originalOrders = [...orders];
+        const orderIndex = originalOrders.findIndex(o => o.id === orderId);
+        if (orderIndex === -1) return;
+    
+        const originalOrder = originalOrders[orderIndex];
+        const itemIndex = originalOrder.order_items.findIndex(i => i.id === itemId);
+        if (itemIndex === -1) return;
+    
+        // Create deep copies for optimistic update
+        const updatedOrder = JSON.parse(JSON.stringify(originalOrder));
+        updatedOrder.order_items[itemIndex].status_produksi = status;
+    
+        // Determine new parent order status
+        const allItemsReady = updatedOrder.order_items.every((item: OrderItem) => item.status_produksi === 'Ready');
+        const newOrderStatus: OrderStatus = allItemsReady ? 'Ready' : 'Proses';
+        const statusChanged = updatedOrder.status_pesanan !== newOrderStatus;
+        updatedOrder.status_pesanan = newOrderStatus;
+    
+        const newOrders = [...originalOrders];
+        newOrders[orderIndex] = updatedOrder;
+        setOrders(newOrders);
+    
+        try {
+            const { error: itemError } = await supabase.from('order_items').update({ status_produksi: status }).eq('id', itemId);
+            if (itemError) throw itemError;
+            addToast(`Status item berhasil diubah menjadi "${status}".`, 'success');
+            
+            if (statusChanged) {
+                const { error: orderError } = await supabase.from('orders').update({ status_pesanan: newOrderStatus }).eq('id', orderId);
+                if (orderError) throw orderError;
+                addToast(`Status order diubah menjadi "${newOrderStatus}".`, 'success');
+            }
+    
+        } catch (error: any) {
+            addToast(`Gagal update status produksi: ${error.message}`, 'error');
+            setOrders(originalOrders); // Rollback
+        }
     };
     
     const updateYouTubePlaylist = async (playlist: YouTubePlaylistItem[]) => {

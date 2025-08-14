@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import EditIcon from '../icons/EditIcon';
 import TrashIcon from '../icons/TrashIcon';
 import PrintIcon from '../icons/PrintIcon';
-import { Customer, CustomerLevel, Bahan, Order, OrderItem, User as AuthUser, ProductionStatus, OrderStatus, Finishing, OrderRow, NotaSetting } from '../../lib/supabaseClient';
+import { Customer, CustomerLevel, Bahan, Order, OrderItem, User as AuthUser, ProductionStatus, OrderStatus, Finishing, OrderRow, NotaSetting, Employee } from '../../lib/supabaseClient';
 import ChevronDownIcon from '../icons/ChevronDownIcon';
 import FilterBar from '../FilterBar';
 import { useToast } from '../../hooks/useToast';
@@ -44,9 +44,11 @@ const emptyOrder: LocalOrder = {
     tanggal: new Date().toISOString().split('T')[0],
     pelanggan_id: 0,
     order_items: [{ ...emptyItem, local_id: Date.now() }],
-    pelaksana_id: null,
     status_pembayaran: 'Belum Lunas',
     status_pesanan: 'Pending',
+    pelaksana_order_id: null,
+    pelaksana_produksi_id: null,
+    pelaksana_delivery_id: null,
 };
 
 const CopyIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
@@ -97,6 +99,7 @@ interface OrderManagementProps {
     addCustomer: (data: Omit<Customer, 'id' | 'created_at'>) => Promise<Customer>;
     bahanList: Bahan[];
     orders: Order[];
+    employees: Employee[];
     finishings: Finishing[];
     addFinishing: (data: Omit<Finishing, 'id' | 'created_at'>) => Promise<Finishing>;
     updateFinishing: (id: number, data: Partial<Omit<Finishing, 'id' | 'created_at'>>) => Promise<void>;
@@ -105,7 +108,7 @@ interface OrderManagementProps {
     addOrder: (orderData: Omit<OrderRow, 'id' | 'created_at' | 'no_nota'> & { order_items: Omit<OrderItem, 'id'|'created_at'|'order_id'>[] }) => Promise<void>;
     updateOrder: (id: number, orderData: Partial<Omit<OrderRow, 'id' | 'created_at'>> & { order_items?: (Omit<OrderItem, 'created_at'|'order_id'> & {id?: number})[] }) => Promise<void>;
     deleteOrder: (id: number) => Promise<void>;
-    updateOrderStatus: (orderId: number, status: OrderStatus, pelaksana_id?: string | null) => Promise<void>;
+    updateOrderStatus: (orderId: number, status: OrderStatus, userId?: string | null) => Promise<void>;
     notaSetting: NotaSetting;
     updateNotaSetting: (settings: NotaSetting) => Promise<void>;
     loadMoreOrders: () => void;
@@ -193,7 +196,7 @@ const AddCustomerModal: React.FC<{
 };
 
 
-const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustomer, bahanList, orders, finishings, addFinishing, updateFinishing, deleteFinishing, loggedInUser, addOrder, updateOrder, deleteOrder, updateOrderStatus, notaSetting, updateNotaSetting, loadMoreOrders, hasMoreOrders, isOrderLoading }) => {
+const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustomer, bahanList, orders, employees, finishings, addFinishing, updateFinishing, deleteFinishing, loggedInUser, addOrder, updateOrder, deleteOrder, updateOrderStatus, notaSetting, updateNotaSetting, loadMoreOrders, hasMoreOrders, isOrderLoading }) => {
     const [editingOrder, setEditingOrder] = useState<Order | null>(null);
     const [formData, setFormData] = useState<LocalOrder>(emptyOrder);
     const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
@@ -346,7 +349,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
                     setIsLoading(false);
                     return;
                 }
-                const { no_nota, ...updatePayload } = formData;
+                const { no_nota, pelaksana_order_id, pelaksana_produksi_id, pelaksana_delivery_id, ...updatePayload } = formData;
                 const finalUpdatePayload = {
                     ...updatePayload,
                     order_items: preparedOrderItems,
@@ -356,6 +359,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
                 const { no_nota, ...addPayload } = formData;
                 const finalAddPayload = {
                     ...addPayload,
+                    pelaksana_order_id: loggedInUser.id,
                     order_items: preparedOrderItems.map(({id, ...rest}) => rest),
                 };
                 await addOrder(finalAddPayload);
@@ -374,13 +378,13 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
         const orderToProcess = orders.find(o => o.id === orderId);
         if (!orderToProcess) return;
 
-        if (window.confirm(`Proses pesanan untuk Nota ${orderToProcess.no_nota}? Stok bahan akan dikurangi.`)) {
-            await updateOrderStatus(orderId, 'Waiting', loggedInUser.id);
+        if (window.confirm(`Proses pesanan untuk Nota ${orderToProcess.no_nota}? Status akan berubah menjadi 'Waiting' dan stok bahan akan dikurangi.`)) {
+            await updateOrderStatus(orderId, 'Waiting');
         }
     };
 
     const handleCancelProcess = async (order: Order) => {
-        if (window.confirm(`Yakin ingin membatalkan proses pesanan Nota ${order.no_nota}? Status akan kembali ke Pending dan stok akan dikembalikan.`)) {
+        if (window.confirm(`Yakin ingin membatalkan pesanan Nota ${order.no_nota}? Status akan kembali ke Pending dan stok akan dikembalikan.`)) {
             await updateOrderStatus(order.id, 'Pending', '');
         }
     };
@@ -394,16 +398,18 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
         }
     };
     
-    const getCustomerName = (id: number | '' | undefined) => {
-        return customers.find(c => c.id === id)?.name || 'N/A';
-    }
+    const getEmployeeName = (userId: string | null): string => {
+        if (!userId) return 'N/A';
+        const employee = employees.find(e => e.user_id === userId);
+        return employee ? employee.name.split(' ')[0] : 'User';
+    };
 
     const toggleExpand = (orderId: number) => {
         setExpandedOrderId(expandedOrderId === orderId ? null : orderId);
     };
 
     const handleCopyItemDetails = (order: Order, item: OrderItem) => {
-        const customerName = getCustomerName(order.pelanggan_id);
+        const customerName = customers.find(c => c.id === order.pelanggan_id)?.name || 'N/A';
         const nota = order.no_nota;
         const bahan = bahanList.find(b => b.id === item.bahan_id)?.name || 'N/A';
         const deskripsi = item.deskripsi_pesanan || '-';
@@ -637,6 +643,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
                                     <tr>
                                         <th scope="col" className="px-6 py-3">No. Nota</th>
                                         <th scope="col" className="px-6 py-3">Pelanggan</th>
+                                        <th scope="col" className="px-6 py-3">Dibuat Oleh</th>
                                         <th scope="col" className="px-6 py-3 text-center">Status</th>
                                         <th scope="col" className="px-6 py-3 text-center">Detail</th>
                                         <th scope="col" className="px-6 py-3 text-center">Aksi</th>
@@ -649,7 +656,8 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
                                             className={`hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors duration-200 ${editingOrder?.id === order.id ? 'bg-pink-50 dark:bg-pink-900/20' : ''}`}
                                         >
                                             <th scope="row" className="px-6 py-4 font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap">{order.no_nota}</th>
-                                            <td data-label="Pelanggan" className="px-6 py-4">{getCustomerName(order.pelanggan_id)}</td>
+                                            <td data-label="Pelanggan" className="px-6 py-4">{customers.find(c => c.id === order.pelanggan_id)?.name || 'N/A'}</td>
+                                            <td data-label="Dibuat Oleh" className="px-6 py-4 capitalize">{getEmployeeName(order.pelaksana_order_id)}</td>
                                             <td data-label="Status Pesanan" className="px-6 py-4 text-center">
                                                 <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                                                     order.status_pesanan === 'Delivered'
@@ -659,7 +667,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
                                                         : order.status_pesanan === 'Proses'
                                                         ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300'
                                                         : order.status_pesanan === 'Waiting'
-                                                        ? 'bg-gray-100 text-gray-800 dark:bg-slate-600 dark:text-slate-200'
+                                                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300'
                                                         : 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'
                                                 }`}>
                                                     {order.status_pesanan}
@@ -675,7 +683,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
                                                 </button>
                                             </td>
                                             <td data-label="Aksi" className="px-6 py-4 text-center space-x-2">
-                                                {['Waiting', 'Proses'].includes(order.status_pesanan) && (
+                                                {['Proses', 'Waiting'].includes(order.status_pesanan) && (
                                                      <button
                                                         onClick={() => handleCancelProcess(order)}
                                                         className="text-amber-600 hover:text-amber-500 dark:text-amber-400 dark:hover:text-amber-300 transition-colors p-1"
@@ -711,7 +719,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
                                         </tr>
                                         {expandedOrderId === order.id && (
                                             <tr className="bg-slate-50 dark:bg-slate-800/50 md:table-row">
-                                                <td colSpan={5} className="p-0">
+                                                <td colSpan={6} className="p-0">
                                                     <div className="px-4 sm:px-6 py-4">
                                                         <h4 className="text-md font-semibold text-slate-700 dark:text-slate-200 mb-3">Rincian Item Pesanan:</h4>
                                                         <div className="border border-slate-200 dark:border-slate-600 rounded-lg overflow-hidden">
