@@ -18,6 +18,8 @@ import YouTubePlaylistModal from './settings/YouTubePlaylistModal';
 import PlusIcon from './icons/PlusIcon';
 import { useToast } from '../hooks/useToast';
 import WarehouseManagement from './warehouse/WarehouseManagement';
+import PayrollManagement from './payroll/PayrollManagement';
+import PayrollSettingsManagement from './payroll/PayrollSettingsManagement';
 
 type MainContentProps = {
   user: AuthUser;
@@ -59,6 +61,9 @@ const MainContent: React.FC<MainContentProps> = (props) => {
     updateBahanStock,
     displaySettings,
     updateYouTubePlaylist,
+    payrollConfigs, addPayrollConfig, updatePayrollConfig, deletePayrollConfig,
+    attendances, addAttendance, updateAttendance, deleteAttendance,
+    payrolls, addPayroll, updatePayroll, deletePayroll,
     onToggleSidebar
   } = props;
   
@@ -231,6 +236,30 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     suppliers={suppliers}
                     bahanList={bahanList}
                 />;
+      case 'Absensi Dan Gaji':
+        return <PayrollManagement 
+            employees={employees}
+            payrollConfigs={payrollConfigs}
+            attendances={attendances}
+            addAttendance={addAttendance}
+            updateAttendance={updateAttendance}
+            deleteAttendance={deleteAttendance}
+            payrolls={payrolls}
+            addPayroll={addPayroll}
+            updatePayroll={updatePayroll}
+            deletePayroll={deletePayroll}
+        />;
+      case 'Manage Absensi dan Gaji':
+        return <PayrollSettingsManagement 
+            employees={employees}
+            payrollConfigs={payrollConfigs}
+            addPayrollConfig={addPayrollConfig}
+            updatePayrollConfig={updatePayrollConfig}
+            deletePayrollConfig={deletePayrollConfig}
+            payrolls={payrolls}
+            updatePayroll={updatePayroll}
+            loggedInUser={user}
+        />;
       case 'Pengaturan':
         return <SettingsManagement 
                     banks={banks}

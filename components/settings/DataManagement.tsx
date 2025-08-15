@@ -7,7 +7,7 @@ import ExclamationCircleIcon from '../icons/ExclamationCircleIcon';
 
 declare const XLSX: any;
 
-const tablesToBackup = [
+const tablesToBackup: (keyof Database['public']['Tables'])[] = [
     'customers', 'employees', 'bahan', 'expenses', 'orders', 'order_items', 'payments',
     'banks', 'assets', 'debts', 'suppliers', 'stock_movements', 'finishings', 
     'settings', 'printers', 'display_settings'
@@ -175,7 +175,7 @@ const DataManagement: React.FC = () => {
                         address: String(row['Alamat'] || ''),
                     })).filter(p => p.name && p.email);
                     if(customersPayload.length > 0) {
-                        const { error } = await supabase.from('customers').insert(customersPayload);
+                        const { error } = await supabase.from('customers').insert(customersPayload as any);
                         if(error) throw new Error(`Pelanggan: ${error.message}`);
                         summary.push(`${customersPayload.length} pelanggan`);
                     }
@@ -195,7 +195,7 @@ const DataManagement: React.FC = () => {
                         stock_qty: 0,
                     })).filter(b => b.name);
                     if(bahanPayload.length > 0) {
-                        const { error } = await supabase.from('bahan').insert(bahanPayload);
+                        const { error } = await supabase.from('bahan').insert(bahanPayload as any);
                         if(error) throw new Error(`Bahan: ${error.message}`);
                         summary.push(`${bahanPayload.length} bahan`);
                     }
@@ -212,7 +212,7 @@ const DataManagement: React.FC = () => {
                         specialty: String(row['Spesialisasi'] || null),
                     })).filter(s => s.name);
                      if(suppliersPayload.length > 0) {
-                        const { error } = await supabase.from('suppliers').insert(suppliersPayload);
+                        const { error } = await supabase.from('suppliers').insert(suppliersPayload as any);
                         if(error) throw new Error(`Suplier: ${error.message}`);
                         summary.push(`${suppliersPayload.length} suplier`);
                     }
@@ -228,7 +228,7 @@ const DataManagement: React.FC = () => {
                         lebar_tambahan: Number(row['Lebar Tambahan (m)'] || 0),
                     })).filter(f => f.name);
                     if(finishingPayload.length > 0) {
-                        const { error } = await supabase.from('finishings').insert(finishingPayload);
+                        const { error } = await supabase.from('finishings').insert(finishingPayload as any);
                         if(error) throw new Error(`Finishing: ${error.message}`);
                         summary.push(`${finishingPayload.length} finishing`);
                     }

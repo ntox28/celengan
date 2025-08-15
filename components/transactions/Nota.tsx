@@ -66,11 +66,11 @@ const Nota = forwardRef<HTMLDivElement, NotaProps>(({
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", paddingBottom: '8px', borderBottom: '1px dashed black' }}>
          <div style={{ width: "60%" }}>
             <h1 style={{ fontSize: "18pt", fontWeight: "bold", margin: 0, padding: 0, lineHeight: 1 }}>
-                <span style={{ color: '#ec4899' }}>NALA</span>
-                <span style={{ color: '#1e293b' }}>MEDIA</span>
-                <span style={{ fontSize: "10pt", fontWeight: "normal", color: '#334155'}}> Digital Printing</span>
+                <span>NALA</span>
+                <span>MEDIA</span>
+                <span style={{ fontSize: "10pt", fontWeight: "normal"}}> Digital Printing</span>
             </h1>
-            <p style={{ fontSize: "8pt", marginTop: "4px", lineHeight: 1.2, margin: 0, color: '#475569' }}>
+            <p style={{ fontSize: "8pt", marginTop: "4px", lineHeight: 1.2, margin: 0 }}>
                 Jl. Prof. Moh. Yamin, Cerbonan, Karanganyar<br/>
                 Email: nalamedia.kra@gmail.com | Telp/WA: 0813-9872-7722
             </p>

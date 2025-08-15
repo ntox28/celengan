@@ -61,7 +61,7 @@ const NotaGambar = forwardRef<HTMLDivElement, NotaGambarProps>(({
       <header className="flex justify-between items-start pb-4 border-b-2 border-gray-200">
         <div className="w-1/2">
           <h1 className="text-3xl font-bold">
-  <span className="text-orange-500">NALA</span>{' '}
+  <span className="text-pink-500">NALA</span>{' '}
   <span className="text-black">MEDIA</span>{' '}
   <span className="text-black text-sm font-normal">Digital Printing</span>
 </h1>
@@ -81,8 +81,7 @@ const NotaGambar = forwardRef<HTMLDivElement, NotaGambarProps>(({
         <div>
           <p className="font-bold text-gray-600">Ditagihkan kepada:</p>
           <p className="font-semibold text-gray-800">{customer?.name || 'N/A'}</p>
-          <p className="text-gray-600">{customer?.address || ''}</p>
-          <p className="text-gray-600">{customer?.phone || ''}</p>
+<div className="text-xs mt-0 text-gray-500 title case">{customer?.address || ''} | {customer?.phone || ''}</div>
         </div>
         <div className="text-right">
           <p><span className="font-bold text-gray-600">Tanggal,</span> {formatDate(order.tanggal)}</p>
@@ -138,11 +137,11 @@ const NotaGambar = forwardRef<HTMLDivElement, NotaGambarProps>(({
           </div>
           <div className="flex justify-between py-2 border-b border-gray-200">
             <span className="text-gray-600">Sudah Dibayar</span>
-            <span className="font-medium text-gray-800">{formatCurrency(totalPaid)}</span>
+            <span className="font-medium text-green-500">{formatCurrency(totalPaid)}</span>
           </div>
           <div className="flex justify-between py-3 bg-gray-50 px-3 rounded-md mt-2">
             <span className="font-bold text-lg text-gray-800">Sisa Tagihan</span>
-            <span className="font-bold text-lg text-orange-500">{formatCurrency(totalTagihan - totalPaid)}</span>
+            <span className="font-bold text-lg text-pink-500">{formatCurrency(totalTagihan - totalPaid)}</span>
           </div>
         </div>
       </section>
@@ -155,8 +154,7 @@ const NotaGambar = forwardRef<HTMLDivElement, NotaGambarProps>(({
              <p key={b.id}><span className="font-semibold">{b.name}:</span> {b.account_number}</p>
           ))}
         </div>
-        <p className="text-center mt-2">Terima kasih atas kepercayaan Anda!</p>
-      </footer>
+       </footer>
     </div>
   );
 });

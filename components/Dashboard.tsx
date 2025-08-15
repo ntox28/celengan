@@ -18,6 +18,7 @@ import { useAppData } from '../hooks/useAppData';
 import SupplierIcon from './icons/SupplierIcon';
 import StockIcon from './icons/StockIcon';
 import WarehouseIcon from './icons/WarehouseIcon';
+import CalendarCheckIcon from './icons/CalendarCheckIcon';
 
 type DashboardProps = {
   user: AuthUser;
@@ -36,6 +37,8 @@ const allMenuItems = [
   { name: 'Daftar Suplier', icon: SupplierIcon, roles: ['Admin', 'Kasir'] },
   { name: 'Daftar Pelanggan', icon: CustomersIcon, roles: ['Admin', 'Kasir'] },
   { name: 'User', icon: UserIcon, roles: ['Admin'] },
+  { name: 'Absensi Dan Gaji', icon: CalendarCheckIcon, roles: ['Admin', 'Kasir'] },
+  { name: 'Manage Absensi dan Gaji', icon: SettingsIcon, roles: ['Admin'] },
   { name: 'Pengaturan', icon: SettingsIcon, roles: ['Admin'] },
 ];
 
@@ -44,30 +47,33 @@ const DashboardComponent: React.FC<DashboardProps> = (props) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const employeeProfile = useMemo(() => employees.find(e => e.user_id === user.id), [employees, user.id]);
   
-  // The 'employees' table is the source of truth for the user's position.
-  // We fall back to user_metadata only if the profile isn't found, which might happen on the very first login.
-  // 'Kasir' is the final default.
   const userRole = employeeProfile?.position || (user.user_metadata as { userrole?: EmployeePosition })?.userrole || 'Kasir';
   const localStorageKey = `celengan-app:activeView:${user.id}`;
+  
+  const settingsMenuItem = allMenuItems.find(item => item.name === 'Pengaturan');
 
   const visibleMenuItems = useMemo(() => {
-    return allMenuItems.filter(item => item.roles.includes(userRole));
+    // Filter out 'Pengaturan' as it will be rendered separately at the bottom.
+    return allMenuItems.filter(item => item.name !== 'Pengaturan' && item.roles.includes(userRole));
   }, [userRole]);
   
-  // Initialize state from localStorage, validating against the user's visible menu items.
+  const allAccessibleViews = useMemo(() => {
+     return allMenuItems.filter(item => item.roles.includes(userRole)).map(item => item.name);
+  }, [userRole]);
+
   const [activeView, setActiveView] = useState(() => {
     try {
         const savedView = localStorage.getItem(localStorageKey);
-        if (savedView && visibleMenuItems.some(item => item.name === savedView)) {
+        if (savedView && allAccessibleViews.includes(savedView)) {
             return savedView;
         }
     } catch (error) {
         console.error("Could not read from localStorage", error);
     }
-    return visibleMenuItems[0]?.name || 'Dashboard';
+    // Return the first accessible item (which might not be 'Dashboard' for some roles)
+    return allAccessibleViews[0] || 'Dashboard';
   });
 
-  // Persist the active view to localStorage whenever it changes.
   useEffect(() => {
     try {
         localStorage.setItem(localStorageKey, activeView);
@@ -76,14 +82,11 @@ const DashboardComponent: React.FC<DashboardProps> = (props) => {
     }
   }, [activeView, localStorageKey]);
 
-  // This effect handles role changes during an active session, ensuring the view is still valid.
   useEffect(() => {
-      const isViewVisible = visibleMenuItems.some(item => item.name === activeView);
-      if (!isViewVisible) {
-          // If the current view is not accessible for the new role, reset to the first available one.
-          setActiveView(visibleMenuItems[0]?.name || 'Dashboard');
+      if (!allAccessibleViews.includes(activeView)) {
+          setActiveView(allAccessibleViews[0] || 'Dashboard');
       }
-  }, [visibleMenuItems, activeView]);
+  }, [allAccessibleViews, activeView]);
 
 
   const handleMenuClick = (viewName: string) => {
@@ -96,15 +99,13 @@ const DashboardComponent: React.FC<DashboardProps> = (props) => {
   return (
     <div className="flex h-screen bg-gray-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200">
       <ToastContainer />
-      {/* Overlay for mobile */}
       {isSidebarOpen && (
           <div 
               className="fixed inset-0 bg-black/50 z-20 lg:hidden"
               onClick={() => setIsSidebarOpen(false)}
           ></div>
       )}
-      {/* Sidebar */}
-      <aside className={`fixed lg:relative inset-y-0 left-0 w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex-col z-30 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:flex`}>
+      <aside className={`fixed lg:relative inset-y-0 left-0 w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col z-30 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:flex`}>
         <div className="h-20 flex items-center justify-center border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
           <div className="text-center">
             <h1 className="text-2xl font-bold text-pink-600">CELENGAN</h1>
@@ -136,6 +137,27 @@ const DashboardComponent: React.FC<DashboardProps> = (props) => {
           })}
         </nav>
         <div className="px-4 py-6 border-t border-slate-200 dark:border-slate-700">
+            {userRole === 'Admin' && settingsMenuItem && (() => {
+                const Icon = settingsMenuItem.icon;
+                const isActive = activeView === settingsMenuItem.name;
+                return (
+                    <a
+                        href="#"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            handleMenuClick(settingsMenuItem.name);
+                        }}
+                        className={`flex items-center w-full px-4 py-3 mb-2 rounded-lg transition-colors duration-200 ${
+                            isActive
+                                ? 'bg-pink-600 text-white shadow-lg'
+                                : 'text-slate-600 dark:text-slate-300 hover:bg-pink-50 dark:hover:bg-slate-700 hover:text-pink-600 dark:hover:text-pink-500'
+                        }`}
+                    >
+                        <Icon className="h-6 w-6 mr-4" />
+                        <span className="font-medium">{settingsMenuItem.name}</span>
+                    </a>
+                );
+            })()}
             <ThemeToggle />
             <button
                 onClick={onLogout}
