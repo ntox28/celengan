@@ -243,7 +243,7 @@ export type Payroll = {
 };
 
 
-export interface Database {
+export type Database = {
   public: {
     Tables: {
       customers: {

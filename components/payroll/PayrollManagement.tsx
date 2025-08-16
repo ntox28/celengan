@@ -660,7 +660,7 @@ const PayrollManagement: React.FC<PayrollManagementProps> = (props) => {
             )}
             
             <div className="printable-area">
-                {printablePayroll && <GajiSlip payroll={printablePayroll} employees={employees} employee={employees.find(e => e.id === printablePayroll.employee_id)} payrollConfig={payrollConfigs.find(pc => pc.employee_id === printablePayroll.employee_id)} />}
+                {printablePayroll && <GajiSlip payroll={printablePayroll} employees={employees} employee={employees.find(e => e.id === printablePayroll.employee_id)} />}
             </div>
             <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 h-full flex flex-col no-print">
                 <div className="border-b border-slate-200 dark:border-slate-700 flex-shrink-0">

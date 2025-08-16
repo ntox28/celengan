@@ -1,11 +1,10 @@
 import React, { forwardRef } from 'react';
-import { Employee, Payroll, PayrollConfig } from '../../lib/supabaseClient';
+import { Employee, Payroll } from '../../lib/supabaseClient';
 
 interface GajiSlipProps {
     payroll: Payroll;
     employee?: Employee;
     employees: Employee[];
-    payrollConfig?: PayrollConfig;
 }
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
@@ -18,121 +17,89 @@ const GajiSlip = forwardRef<HTMLDivElement, GajiSlipProps>(({ payroll, employee,
     const approverName = approver ? approver.name : 'Manager';
 
     return (
-        <div ref={ref} className="bg-white text-black p-8 font-sans text-sm" style={{ width: '210mm', minHeight: '297mm', boxSizing: 'border-box' }}>
+        <div ref={ref} className="bg-white text-black p-8 font-sans text-xs" style={{ width: '210mm', boxSizing: 'border-box' }}>
             {/* Header */}
-            <header className="flex justify-between items-start pb-1 mb-1 border-b">
+            <header className="flex justify-between items-start pb-2 mb-2">
                 <div>
-                    <h1 className="text-2xl font-bold">NALA MEDIA</h1>
-                    <p className="text-xs">Jl. Prof. Moh. Yamin, Cerbonan, Karanganyar</p>
+                    <h1 className="text-xl font-bold">NALA MEDIA</h1>
+                    <p className="text-[9px] leading-tight">Jl. Prof. Moh. Yamin, Cerbonan, Karanganyar</p>
                 </div>
-                <h2 className="text-2xl font-semibold mt-1">SLIP GAJI</h2>
+                <h2 className="text-xl font-bold">SLIP GAJI</h2>
             </header>
-
+            <div className="border-t border-dashed border-black"></div>
+            
             {/* Employee & Period Info */}
-            <section className="flex justify-between mb-1">
-                <div>
-                    <table>
-                        <tbody>
-                            <tr>
-                                <td className="pr-4 py-0.5">Nama</td>
-                                <td className="py-0.5">: {employee?.name || 'N/A'}</td>
-                            </tr>
-                            <tr>
-                                <td className="pr-4 py-0.5">Devisi</td>
-                                <td className="py-0.5">: {employee?.position || 'N/A'}</td>
-                            </tr>
-                        </tbody>
-                    </table>
+            <section className="flex justify-between my-1 text-[10px]">
+                <div className="w-1/2 space-y-1">
+                    <div className="flex"><span className="w-24 inline-block">NAMA</span>: {employee?.name || 'N/A'}</div>
+                    <div className="flex"><span className="w-24 inline-block">DEVISI</span>: {employee?.position || 'N/A'}</div>
                 </div>
-                <div>
-                    <table>
-                        <tbody>
-                            <tr>
-                                <td className="pr-4 py-0.5">Periode Gaji</td>
-                                <td className="py-0.5">: {formatDate(payroll.period_start)} - {formatDate(payroll.period_end)}</td>
-                            </tr>
-                            <tr>
-                                <td className="pr-4 py-0.5">Tanggal Cetak</td>
-                                <td className="py-0.5">: {formatDate(new Date().toISOString())}</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <div className="w-1/2 text-right space-y-1">
+                     <div className="flex justify-end"><span className="w-28 text-left inline-block"></span>Periode: {formatDate(payroll.period_start)} - {formatDate(payroll.period_end)}</div>
+                     <div className="flex justify-end"><span className="w-28 text-left inline-block"></span>Tanggal Cetak: {formatDate(new Date().toISOString())}</div>
                 </div>
-            </section>
-
-            {/* Salary Details */}
-            <section>
-                <table className="w-full border-collapse">
-                    <thead>
-                        <tr className="bg-slate-100">
-                            <th className="border p-1.5 text-left font-semibold" colSpan={2}>PENDAPATAN</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td className="border p-1.5 w-3/4">Gaji Pokok (Total Jam Kerja: {payroll.total_regular_hours.toFixed(2)} jam)</td>
-                            <td className="border p-1.5 text-right">{formatCurrency(payroll.base_salary)}</td>
-                        </tr>
-                        <tr>
-                            <td className="border p-1.5">Lembur (Total Jam Lembur: {payroll.total_overtime_hours.toFixed(2)} jam)</td>
-                            <td className="border p-1.5 text-right">{formatCurrency(payroll.overtime_pay)}</td>
-                        </tr>
-                        {payroll.bonus > 0 && (
-                             <>
-                                <tr>
-                                    <td className="border p-1.5 w-3/4">Bonus</td>
-                                    <td className="border p-1.5 text-right">{formatCurrency(payroll.bonus)}</td>
-                                </tr>
-                                {payroll.notes && (
-                                    <tr>
-                                        <td className="border p-1.5 text-xs italic text-slate-500" colSpan={2}>
-                                            Catatan: {payroll.notes}
-                                        </td>
-                                    </tr>
-                                )}
-                            </>
-                        )}
-                    </tbody>
-                    <tfoot>
-                        <tr className="bg-slate-50 font-bold">
-                            <td className="border p-1.5 text-right">TOTAL PENDAPATAN (A)</td>
-                            <td className="border p-1.5 text-right">{formatCurrency(totalPendapatan)}</td>
-                        </tr>
-                    </tfoot>
-                </table>
-
-                 <table className="w-full border-collapse mt-2">
-                    <thead>
-                        <tr className="bg-slate-100">
-                            <th className="border p-1.5 text-left font-semibold" colSpan={2}>POTONGAN</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                         <tr>
-                            <td className="border p-1.5 w-3/4">Potongan Gaji</td>
-                            <td className="border p-1.5 text-right">{formatCurrency(payroll.potongan)}</td>
-                        </tr>
-                        {payroll.catatan_potongan && (
-                            <tr>
-                                <td className="border p-1.5 text-xs italic text-slate-500" colSpan={2}>
-                                    Catatan: {payroll.catatan_potongan}
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                    <tfoot>
-                        <tr className="bg-slate-50 font-bold">
-                            <td className="border p-1.5 text-right">TOTAL POTONGAN (B)</td>
-                            <td className="border p-1.5 text-right">{formatCurrency(payroll.potongan)}</td>
-                        </tr>
-                    </tfoot>
-                </table>
             </section>
             
+            <div className="border-t border-dashed border-black mb-2"></div>
+
+            {/* Salary Details */}
+            <section className="space-y-4">
+                {/* PENDAPATAN */}
+                <div>
+                    <div className="font-bold mb-1">PENDAPATAN</div>
+                    <div className="flex justify-between py-0.5">
+                        <span>Gaji Pokok (Total Jam Kerja: {payroll.total_regular_hours.toFixed(2)} jam)</span>
+                        <span>{formatCurrency(payroll.base_salary)}</span>
+                    </div>
+                    <div className="flex justify-between py-0.5">
+                        <span>Lembur (Total Jam Lembur: {payroll.total_overtime_hours.toFixed(2)} jam)</span>
+                        <span>{formatCurrency(payroll.overtime_pay)}</span>
+                    </div>
+                    {payroll.bonus > 0 && (
+                        <>
+                            <div className="flex justify-between py-0.5">
+                                <span>Bonus</span>
+                                <span>{formatCurrency(payroll.bonus)}</span>
+                            </div>
+                            {payroll.notes && (
+                                <div className="text-slate-600 text-[9px] italic pl-4 py-0.5">
+                                    Catatan: {payroll.notes}
+                                </div>
+                            )}
+                        </>
+                    )}
+                    <div className="border-t border-dashed border-black my-1"></div>
+                    <div className="flex justify-between font-bold">
+                        <span>TOTAL PENDAPATAN (A)</span>
+                        <span>{formatCurrency(totalPendapatan)}</span>
+                    </div>
+                </div>           
+                {/* POTONGAN */}
+                <div>
+                    <div className="font-bold mb-1">POTONGAN</div>
+                    <div className="flex justify-between py-0.5">
+                        <span>Potongan Gaji</span>
+                        <span>{formatCurrency(payroll.potongan)}</span>
+                    </div>
+                     {payroll.catatan_potongan && (
+                        <div className="text-slate-600 text-[9px] italic pl-4 py-0.5">
+                            Catatan: {payroll.catatan_potongan}
+                        </div>
+                    )}
+                    <div className="border-t border-dashed border-black my-1"></div>
+                    <div className="flex justify-between font-bold">
+                        <span>TOTAL POTONGAN (B)</span>
+                        <span>{formatCurrency(payroll.potongan)}</span>
+                    </div>
+                </div>
+            </section>
+            
+            <div className="border-t-2 border-dashed border-black my-2"></div>
+
             {/* Final Salary */}
-            <section className="mt-1">
+            <section className="mt-2">
                  <div className="flex justify-end">
-                     <div className="w-1/2 bg-slate-200 p-2 font-bold flex justify-between">
+                     <div className="w-1/2 flex justify-between font-bold text-base">
                          <span>GAJI BERSIH (A - B)</span>
                          <span>{formatCurrency(payroll.total_salary)}</span>
                      </div>
@@ -140,16 +107,16 @@ const GajiSlip = forwardRef<HTMLDivElement, GajiSlipProps>(({ payroll, employee,
             </section>
 
             {/* Signature */}
-            <footer className="mt-1 flex justify-between text-center">
-                <div>
+            <footer className="mt-2 flex justify-between text-center text-[10px]">
+                <div className="w-1/3">
                     <p>Disetujui Oleh,</p>
                     <div className="h-1"></div>
-                    <p className="border-t pt-1">( {approverName} )</p>
+                    <p className="font-bold">( {approverName} )</p>
                 </div>
-                 <div>
+                 <div className="w-1/3">
                     <p>Diterima Oleh,</p>
                     <div className="h-1"></div>
-                    <p className="border-t pt-1">( {employee?.name} )</p>
+                    <p className="font-bold">( {employee?.name} )</p>
                 </div>
             </footer>
         </div>
