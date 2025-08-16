@@ -20,7 +20,7 @@ const GajiSlip = forwardRef<HTMLDivElement, GajiSlipProps>(({ payroll, employee,
     return (
         <div ref={ref} className="bg-white text-black p-8 font-sans text-sm" style={{ width: '210mm', minHeight: '297mm', boxSizing: 'border-box' }}>
             {/* Header */}
-            <header className="flex justify-between items-start pb-2 mb-2 border-b">
+            <header className="flex justify-between items-start pb-1 mb-1 border-b">
                 <div>
                     <h1 className="text-2xl font-bold">NALA MEDIA</h1>
                     <p className="text-xs">Jl. Prof. Moh. Yamin, Cerbonan, Karanganyar</p>
@@ -29,7 +29,7 @@ const GajiSlip = forwardRef<HTMLDivElement, GajiSlipProps>(({ payroll, employee,
             </header>
 
             {/* Employee & Period Info */}
-            <section className="flex justify-between mb-2">
+            <section className="flex justify-between mb-1">
                 <div>
                     <table>
                         <tbody>
@@ -130,7 +130,7 @@ const GajiSlip = forwardRef<HTMLDivElement, GajiSlipProps>(({ payroll, employee,
             </section>
             
             {/* Final Salary */}
-            <section className="mt-2">
+            <section className="mt-1">
                  <div className="flex justify-end">
                      <div className="w-1/2 bg-slate-200 p-2 font-bold flex justify-between">
                          <span>GAJI BERSIH (A - B)</span>
@@ -140,15 +140,15 @@ const GajiSlip = forwardRef<HTMLDivElement, GajiSlipProps>(({ payroll, employee,
             </section>
 
             {/* Signature */}
-            <footer className="mt-2 flex justify-between text-center">
+            <footer className="mt-1 flex justify-between text-center">
                 <div>
                     <p>Disetujui Oleh,</p>
-                    <div className="h-12"></div>
+                    <div className="h-1"></div>
                     <p className="border-t pt-1">( {approverName} )</p>
                 </div>
                  <div>
                     <p>Diterima Oleh,</p>
-                    <div className="h-12"></div>
+                    <div className="h-1"></div>
                     <p className="border-t pt-1">( {employee?.name} )</p>
                 </div>
             </footer>
