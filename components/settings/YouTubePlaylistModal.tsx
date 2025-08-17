@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../../hooks/useToast';
 import { DisplaySettings, YouTubePlaylistItem } from '../../lib/supabaseClient';
@@ -13,6 +14,33 @@ interface YouTubePlaylistModalProps {
     onSave: (playlist: YouTubePlaylistItem[]) => Promise<void>;
 }
 
+// Helper function to safely parse playlist data which might be an array, a JSON string, or a single URL string.
+const parsePlaylistData = (rawData: any): YouTubePlaylistItem[] => {
+  if (Array.isArray(rawData)) {
+    // Ensure all items are valid objects before returning
+    return rawData.filter(item => typeof item === 'object' && item !== null && 'url' in item && 'title' in item);
+  }
+
+  if (typeof rawData === 'string' && rawData.trim()) {
+    try {
+      const parsed = JSON.parse(rawData);
+      if (Array.isArray(parsed)) {
+        // Ensure all items in parsed array are valid
+        return parsed.filter(item => typeof item === 'object' && item !== null && 'url' in item && 'title' in item);
+      }
+    } catch (e) {
+      // Not a valid JSON string, might be a single URL
+      if (rawData.startsWith('http')) {
+        return [{ url: rawData, title: 'Judul tidak ditemukan' }];
+      }
+      console.warn('Could not parse playlist items. It was not a valid JSON array or a URL.', rawData);
+    }
+  }
+
+  return [];
+};
+
+
 const YouTubePlaylistModal: React.FC<YouTubePlaylistModalProps> = ({ isOpen, onClose, playlistItems, onSave }) => {
     const [playlist, setPlaylist] = useState<YouTubePlaylistItem[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -20,7 +48,9 @@ const YouTubePlaylistModal: React.FC<YouTubePlaylistModalProps> = ({ isOpen, onC
 
     useEffect(() => {
         if (isOpen) {
-            setPlaylist(playlistItems);
+            // The prop might not be an array if parsing failed upstream or type is incorrect
+            const parsedPlaylist = parsePlaylistData(playlistItems);
+            setPlaylist(parsedPlaylist);
         }
     }, [isOpen, playlistItems]);
 
@@ -69,7 +99,7 @@ const YouTubePlaylistModal: React.FC<YouTubePlaylistModalProps> = ({ isOpen, onC
                 <p className="text-slate-500 dark:text-slate-400 mb-6 flex-shrink-0">Ubah urutan atau hapus video dari playlist publik.</p>
 
                 <div className="flex-1 overflow-y-auto -mr-4 pr-4 space-y-3">
-                    {playlist.length > 0 ? (
+                    {playlist && playlist.length > 0 ? (
                         playlist.map((item, index) => (
                             <div key={index} className="flex items-start gap-3 bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg border border-slate-200 dark:border-slate-600">
                                 <span className="font-mono text-sm text-slate-500 dark:text-slate-400 pt-1">{index + 1}.</span>

@@ -13,7 +13,6 @@ import SettingsIcon from './icons/SettingsIcon';
 import LogoutIcon from './icons/LogoutIcon';
 import { EmployeePosition, User as AuthUser } from '../lib/supabaseClient';
 import ThemeToggle from './ThemeToggle';
-import ToastContainer from './toasts/ToastContainer';
 import { useAppData } from '../hooks/useAppData';
 import SupplierIcon from './icons/SupplierIcon';
 import StockIcon from './icons/StockIcon';
@@ -98,7 +97,7 @@ const DashboardComponent: React.FC<DashboardProps> = (props) => {
   
   return (
     <div className="flex h-screen bg-gray-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200">
-      <ToastContainer />
+      
       {isSidebarOpen && (
           <div 
               className="fixed inset-0 bg-black/50 z-20 lg:hidden"

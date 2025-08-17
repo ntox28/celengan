@@ -41,7 +41,24 @@ self.addEventListener('fetch', event => {
 
   // For Supabase API calls and authentication, always go to the network.
   if (request.url.includes('supabase.co')) {
-    event.respondWith(fetch(request));
+    event.respondWith(
+        fetch(request).catch(error => {
+            console.error('Supabase fetch failed:', error);
+            // Create a synthetic error response to avoid the generic "Failed to fetch" TypeError.
+            // This allows the application's error handling logic to take over with a clearer message.
+            const errorResponse = {
+                message: 'Koneksi jaringan gagal. Anda mungkin sedang offline.',
+                code: 'NETWORK_ERROR',
+                details: 'Gagal menghubungi server Supabase.',
+                hint: ''
+            };
+            return new Response(JSON.stringify(errorResponse), {
+                status: 503, // Service Unavailable
+                statusText: 'Network Error',
+                headers: { 'Content-Type': 'application/json' }
+            });
+        })
+    );
     return;
   }
   

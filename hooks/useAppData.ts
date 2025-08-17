@@ -1,7 +1,7 @@
 
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { supabase, Customer, Employee, Bahan, Expense, Order, OrderItem, Payment, User, Bank, Asset, Debt, NotaSetting, Supplier, StockMovement, Finishing, OrderStatus, ProductionStatus, OrderRow, Database, CustomerLevel, PaymentStatus, DisplaySettings, YouTubePlaylistItem, PayrollConfig, Attendance, Payroll, PayrollStatus } from '../lib/supabaseClient';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { supabase, Customer, Employee, Bahan, Expense, Order, OrderItem, Payment, User, Bank, Asset, Debt, NotaSetting, Supplier, StockMovement, Finishing, OrderStatus, ProductionStatus, OrderRow, Database, CustomerLevel, PaymentStatus, DisplaySettings, YouTubePlaylistItem, PayrollConfig, Attendance, Payroll, PayrollStatus, TeamChatMessage } from '../lib/supabaseClient';
 import { useToast } from './useToast';
 
 // Type definitions for complex parameters
@@ -25,7 +25,7 @@ const calculateOrderTotal = (order: Order, customers: Customer[], bahanList: Bah
     const customer = customers.find(c => c.id === order.pelanggan_id);
     if (!customer) return 0;
 
-    return order.order_items.reduce((total, item) => {
+    const total = order.order_items.reduce((total, item) => {
         const bahan = bahanList.find(b => b.id === item.bahan_id);
         if (!bahan) return total;
 
@@ -34,6 +34,7 @@ const calculateOrderTotal = (order: Order, customers: Customer[], bahanList: Bah
         const itemTotal = price * itemArea * item.qty;
         return total + itemTotal;
     }, 0);
+    return Math.round(total);
 };
 
 const formatCurrency = (value: number) => {
@@ -47,9 +48,17 @@ const formatCurrency = (value: number) => {
 
 const ORDERS_PAGE_SIZE = 25;
 
+const ORDER_SELECT_QUERY = `
+    id, created_at, no_nota, tanggal, pelanggan_id, status_pembayaran, status_pesanan, 
+    pelaksana_order_id, pelaksana_produksi_id, pelaksana_delivery_id,
+    order_items(id, order_id, bahan_id, deskripsi_pesanan, panjang, lebar, qty, status_produksi, finishing_id, created_at),
+    payments(id, order_id, amount, payment_date, kasir_id, bank_id, created_at)
+`;
+
 export const useAppData = (user: User | undefined) => {
     const { addToast } = useToast();
     const [isDataLoaded, setIsDataLoaded] = useState(false);
+    const initialLoadDone = useRef(false);
     
     // States for all data
     const [employees, setEmployees] = useState<Employee[]>([]);
@@ -68,7 +77,19 @@ export const useAppData = (user: User | undefined) => {
     const [payrollConfigs, setPayrollConfigs] = useState<PayrollConfig[]>([]);
     const [attendances, setAttendances] = useState<Attendance[]>([]);
     const [payrolls, setPayrolls] = useState<Payroll[]>([]);
+    const [teamChatMessages, setTeamChatMessages] = useState<TeamChatMessage[]>([]);
+    const [unreadChatCount, setUnreadChatCount] = useState(0);
 
+    const lastChatCheckKey = `celengan-app:lastChatCheck:${user?.id}`;
+
+    const [filters, setFilters] = useState({
+        customerId: 'all',
+        startDate: '',
+        endDate: '',
+        paymentStatus: 'all',
+        orderStatus: 'all',
+        searchQuery: '',
+    });
 
     // State for order pagination
     const [orderPage, setOrderPage] = useState(0);
@@ -76,7 +97,7 @@ export const useAppData = (user: User | undefined) => {
     const [isOrderLoading, setIsOrderLoading] = useState(false);
     
     const fetchFullOrder = useCallback(async (orderId: number): Promise<Order | null> => {
-        const { data, error } = await supabase.from('orders').select('*, order_items(*), payments(*)').eq('id', orderId).maybeSingle();
+        const { data, error } = await supabase.from('orders').select(ORDER_SELECT_QUERY).eq('id', orderId).maybeSingle();
         if (error) {
             console.error(`Error fetching full order for ID ${orderId}:`, error);
             addToast(`Gagal memuat detail order: ${error.message}`, 'error');
@@ -85,38 +106,88 @@ export const useAppData = (user: User | undefined) => {
         return data as unknown as Order | null;
     }, [addToast]);
 
+    const loadOrders = useCallback(async (currentFilters: typeof filters, page: number, append: boolean) => {
+        setIsOrderLoading(true);
+        try {
+            let query = supabase.from('orders').select(ORDER_SELECT_QUERY);
+            
+            if (currentFilters.customerId !== 'all') {
+                query = query.eq('pelanggan_id', Number(currentFilters.customerId));
+            }
+            if (currentFilters.startDate) {
+                query = query.gte('tanggal', currentFilters.startDate);
+            }
+            if (currentFilters.endDate) {
+                query = query.lte('tanggal', currentFilters.endDate);
+            }
+            if (currentFilters.paymentStatus !== 'all') {
+                query = query.eq('status_pembayaran', currentFilters.paymentStatus as PaymentStatus);
+            }
+             if (currentFilters.orderStatus !== 'all') {
+                query = query.eq('status_pesanan', currentFilters.orderStatus as OrderStatus);
+            }
+            if (currentFilters.searchQuery) {
+                query = query.ilike('no_nota', `%${currentFilters.searchQuery}%`);
+            }
+            
+            const from = page * ORDERS_PAGE_SIZE;
+            const to = from + ORDERS_PAGE_SIZE - 1;
+            query = query.order('created_at', { ascending: false }).range(from, to);
+            
+            const { data, error } = await query;
+            if (error) throw error;
+            
+            const newOrders = data as unknown as Order[];
+            
+            if (append) {
+                setOrders(prev => [...prev, ...newOrders]);
+            } else {
+                setOrders(newOrders);
+            }
+            setOrderPage(page);
+            setHasMoreOrders(newOrders.length === ORDERS_PAGE_SIZE);
+        } catch (error: any) {
+            addToast(`Gagal memuat order: ${error.message}`, 'error');
+        } finally {
+            setIsOrderLoading(false);
+        }
+    }, [addToast]);
+    
+    useEffect(() => {
+        if (!initialLoadDone.current || !user) return;
+        loadOrders(filters, 0, false);
+    }, [filters, user, loadOrders]);
 
     const fetchInitialData = useCallback(async () => {
         setIsDataLoaded(false);
         try {
-            const from = 0;
-            const to = ORDERS_PAGE_SIZE - 1;
-
+            
             const [
                 employeesRes, customersRes, bahanRes, initialOrdersRes,
                 expensesRes, banksRes, assetsRes, debtsRes, suppliersRes,
                 stockMovementsRes, finishingsRes, notaSettingsRes, displaySettingsRes,
-                payrollConfigsRes, attendancesRes, payrollsRes
+                payrollConfigsRes, attendancesRes, payrollsRes, chatRes
             ] = await Promise.all([
-                supabase.from('employees').select('*').order('name'),
-                supabase.from('customers').select('*').order('name'),
-                supabase.from('bahan').select('*').order('name'),
-                supabase.from('orders').select('*, order_items(*), payments(*)').order('created_at', { ascending: false }).range(from, to),
-                supabase.from('expenses').select('*').order('tanggal', { ascending: false }),
-                supabase.from('banks').select('*'),
-                supabase.from('assets').select('*'),
-                supabase.from('debts').select('*'),
-                supabase.from('suppliers').select('*').order('name'),
-                supabase.from('stock_movements').select('*'),
-                supabase.from('finishings').select('*').order('name'),
-                supabase.from('settings').select('*').in('key', ['nota_prefix', 'nota_last_number']),
-                supabase.from('display_settings').select('*').eq('id', 1).maybeSingle(),
-                supabase.from('payroll_configs').select('*'),
-                supabase.from('attendances').select('*').order('check_in', { ascending: false }),
-                supabase.from('payrolls').select('*').order('created_at', { ascending: false })
+                supabase.from('employees').select('id, name, position, email, phone, user_id').order('name'),
+                supabase.from('customers').select('id, name, email, phone, address, level').order('name'),
+                supabase.from('bahan').select('id, name, harga_end_customer, harga_retail, harga_grosir, harga_reseller, harga_corporate, stock_qty').order('name'),
+                supabase.from('orders').select(ORDER_SELECT_QUERY).order('created_at', { ascending: false }).range(0, ORDERS_PAGE_SIZE - 1),
+                supabase.from('expenses').select('id, tanggal, jenis_pengeluaran, keterangan, qty, harga, bahan_id, supplier_id').order('tanggal', { ascending: false }),
+                supabase.from('banks').select('id, name, account_holder, account_number, category'),
+                supabase.from('assets').select('id, name, category, purchase_price, purchase_date, status, is_dynamic'),
+                supabase.from('debts').select('id, creditor_name, category, description, total_amount, due_date, status'),
+                supabase.from('suppliers').select('id, name, contact_person, phone, specialty').order('name'),
+                supabase.from('stock_movements').select('id, created_at, bahan_id, type, quantity, supplier_id, notes'),
+                supabase.from('finishings').select('id, name, panjang_tambahan, lebar_tambahan').order('name'),
+                supabase.from('settings').select('key, value').in('key', ['nota_prefix', 'nota_last_number']),
+                supabase.from('display_settings').select('id, created_at, youtube_url').eq('id', 1).maybeSingle(),
+                supabase.from('payroll_configs').select('id, employee_id, regular_rate_per_hour, overtime_rate_per_hour'),
+                supabase.from('attendances').select('id, employee_id, check_in, check_out, overtime_minutes, notes, shift, catatan_lembur, potongan, catatan_potongan, payroll_id').order('check_in', { ascending: false }),
+                supabase.from('payrolls').select('id, created_at, employee_id, period_start, period_end, total_regular_hours, total_overtime_hours, base_salary, overtime_pay, bonus, potongan, notes, catatan_potongan, total_salary, status, approved_by, approved_at').order('created_at', { ascending: false }),
+                supabase.from('team_chat').select('*').order('created_at', { ascending: true })
             ]);
 
-            const responses = [employeesRes, customersRes, bahanRes, initialOrdersRes, expensesRes, banksRes, assetsRes, debtsRes, suppliersRes, stockMovementsRes, finishingsRes, notaSettingsRes, displaySettingsRes, payrollConfigsRes, attendancesRes, payrollsRes];
+            const responses = [employeesRes, customersRes, bahanRes, initialOrdersRes, expensesRes, banksRes, assetsRes, debtsRes, suppliersRes, stockMovementsRes, finishingsRes, notaSettingsRes, displaySettingsRes, payrollConfigsRes, attendancesRes, payrollsRes, chatRes];
             for (const res of responses) {
                 if (res.error) throw res.error;
             }
@@ -135,6 +206,17 @@ export const useAppData = (user: User | undefined) => {
             setPayrollConfigs(payrollConfigsRes.data as unknown as PayrollConfig[] || []);
             setAttendances(attendancesRes.data as unknown as Attendance[] || []);
             setPayrolls(payrollsRes.data as unknown as Payroll[] || []);
+            
+            const chatMessages = chatRes.data as unknown as TeamChatMessage[] || [];
+            setTeamChatMessages(chatMessages);
+
+            if (user) {
+                const lastCheck = localStorage.getItem(lastChatCheckKey) || new Date(0).toISOString();
+                const newUnreadCount = chatMessages.filter(
+                    msg => msg.user_id !== user.id && msg.created_at > lastCheck
+                ).length;
+                setUnreadChatCount(newUnreadCount);
+            }
 
             const initialOrdersData = initialOrdersRes.data || [];
             setOrders(initialOrdersData as unknown as Order[]);
@@ -146,40 +228,20 @@ export const useAppData = (user: User | undefined) => {
             setNotaSetting({ prefix, start_number_str: lastNumber });
             setDisplaySettings(displaySettingsRes.data as unknown as DisplaySettings | null);
 
+            initialLoadDone.current = true;
         } catch (error: any) {
+            const errorMessage = error?.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
             console.error("Error fetching initial data:", error);
-            addToast(`Gagal memuat data: ${error.message}`, 'error');
+            addToast(`Gagal memuat data: ${errorMessage}`, 'error');
         } finally {
             setIsDataLoaded(true);
         }
-    }, [addToast]);
+    }, [addToast, user, lastChatCheckKey]);
 
     const loadMoreOrders = useCallback(async () => {
         if (isOrderLoading || !hasMoreOrders) return;
-
-        setIsOrderLoading(true);
-        const nextPage = orderPage + 1;
-        const from = nextPage * ORDERS_PAGE_SIZE;
-        const to = from + ORDERS_PAGE_SIZE - 1;
-
-        try {
-            const { data, error } = await supabase.from('orders')
-                .select('*, order_items(*), payments(*)')
-                .order('created_at', { ascending: false })
-                .range(from, to);
-
-            if (error) throw error;
-            
-            setOrders(prev => [...prev, ...data as unknown as Order[]]);
-            setOrderPage(nextPage);
-            setHasMoreOrders(data.length === ORDERS_PAGE_SIZE);
-
-        } catch (error: any) {
-            addToast(`Gagal memuat order selanjutnya: ${error.message}`, 'error');
-        } finally {
-            setIsOrderLoading(false);
-        }
-    }, [isOrderLoading, hasMoreOrders, orderPage, addToast]);
+        loadOrders(filters, orderPage + 1, true);
+    }, [isOrderLoading, hasMoreOrders, orderPage, filters, loadOrders]);
 
     useEffect(() => {
         if (user && !isDataLoaded) {
@@ -219,25 +281,76 @@ export const useAppData = (user: User | undefined) => {
             .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, handleOrderRelatedChange)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, handleOrderRelatedChange)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, handleOrderRelatedChange)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, () => supabase.from('customers').select('*').order('name').then(({data}) => setCustomers(data as unknown as Customer[] || [])))
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'employees' }, () => supabase.from('employees').select('*').order('name').then(({data}) => setEmployees(data as unknown as Employee[] || [])))
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'bahan' }, () => supabase.from('bahan').select('*').order('name').then(({data}) => setBahanList(data as unknown as Bahan[] || [])))
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, () => supabase.from('expenses').select('*').order('tanggal', {ascending: false}).then(({data}) => setExpenses(data as unknown as Expense[] || [])))
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'banks' }, () => supabase.from('banks').select('*').then(({data}) => setBanks(data as unknown as Bank[] || [])))
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'assets' }, () => supabase.from('assets').select('*').then(({data}) => setAssets(data as unknown as Asset[] || [])))
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'debts' }, () => supabase.from('debts').select('*').then(({data}) => setDebts(data as unknown as Debt[] || [])))
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'suppliers' }, () => supabase.from('suppliers').select('*').order('name').then(({data}) => setSuppliers(data as unknown as Supplier[] || [])))
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'stock_movements' }, () => supabase.from('stock_movements').select('*').then(({data}) => setStockMovements(data as unknown as StockMovement[] || [])))
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'finishings' }, () => supabase.from('finishings').select('*').order('name').then(({data}) => setFinishings(data as unknown as Finishing[] || [])))
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'payroll_configs' }, () => supabase.from('payroll_configs').select('*').then(({data}) => setPayrollConfigs(data as unknown as PayrollConfig[] || [])))
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'attendances' }, () => supabase.from('attendances').select('*').order('check_in', { ascending: false }).then(({data}) => setAttendances(data as unknown as Attendance[] || [])))
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'payrolls' }, () => supabase.from('payrolls').select('*').order('created_at', { ascending: false }).then(({data}) => setPayrolls(data as unknown as Payroll[] || [])))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, () => supabase.from('customers').select('id, name, email, phone, address, level').order('name').then(({data}) => setCustomers(data as unknown as Customer[] || [])))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'employees' }, () => supabase.from('employees').select('id, name, position, email, phone, user_id').order('name').then(({data}) => setEmployees(data as unknown as Employee[] || [])))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'bahan' }, () => supabase.from('bahan').select('id, name, harga_end_customer, harga_retail, harga_grosir, harga_reseller, harga_corporate, stock_qty').order('name').then(({data}) => setBahanList(data as unknown as Bahan[] || [])))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, () => supabase.from('expenses').select('id, tanggal, jenis_pengeluaran, keterangan, qty, harga, bahan_id, supplier_id').order('tanggal', {ascending: false}).then(({data}) => setExpenses(data as unknown as Expense[] || [])))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'banks' }, () => supabase.from('banks').select('id, name, account_holder, account_number, category').then(({data}) => setBanks(data as unknown as Bank[] || [])))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'assets' }, () => supabase.from('assets').select('id, name, category, purchase_price, purchase_date, status, is_dynamic').then(({data}) => setAssets(data as unknown as Asset[] || [])))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'debts' }, () => supabase.from('debts').select('id, creditor_name, category, description, total_amount, due_date, status').then(({data}) => setDebts(data as unknown as Debt[] || [])))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'suppliers' }, () => supabase.from('suppliers').select('id, name, contact_person, phone, specialty').order('name').then(({data}) => setSuppliers(data as unknown as Supplier[] || [])))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'stock_movements' }, () => supabase.from('stock_movements').select('id, created_at, bahan_id, type, quantity, supplier_id, notes').then(({data}) => setStockMovements(data as unknown as StockMovement[] || [])))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'finishings' }, () => supabase.from('finishings').select('id, name, panjang_tambahan, lebar_tambahan').order('name').then(({data}) => setFinishings(data as unknown as Finishing[] || [])))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'payroll_configs' }, () => supabase.from('payroll_configs').select('id, employee_id, regular_rate_per_hour, overtime_rate_per_hour').then(({data}) => setPayrollConfigs(data as unknown as PayrollConfig[] || [])))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'attendances' }, () => supabase.from('attendances').select('id, employee_id, check_in, check_out, overtime_minutes, notes, shift, catatan_lembur, potongan, catatan_potongan, payroll_id').order('check_in', { ascending: false }).then(({data}) => setAttendances(data as unknown as Attendance[] || [])))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'payrolls' }, () => supabase.from('payrolls').select('id, created_at, employee_id, period_start, period_end, total_regular_hours, total_overtime_hours, base_salary, overtime_pay, bonus, potongan, notes, catatan_potongan, total_salary, status, approved_by, approved_at').order('created_at', { ascending: false }).then(({data}) => setPayrolls(data as unknown as Payroll[] || [])))
             .subscribe();
 
         return () => {
             supabase.removeChannel(channel);
         };
     }, [user, fetchFullOrder]);
+
+    // Dedicated real-time subscription for team chat for improved stability and error handling
+    useEffect(() => {
+        if (!user) return;
+
+        const chatChannel = supabase
+            .channel('team-chat-realtime')
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'team_chat' },
+                (payload) => {
+                    const newMessage = payload.new as TeamChatMessage;
+                    
+                    setTeamChatMessages(prev => {
+                        // Prevent duplicates from race conditions
+                        if (prev.find(msg => msg.id === newMessage.id)) {
+                            return prev;
+                        }
+                        const updatedMessages = [...prev, newMessage];
+                        return updatedMessages.slice(-50); // Keep only last 50 messages
+                    });
+
+                    if (newMessage.user_id !== user.id) {
+                        setUnreadChatCount(prev => prev + 1);
+                    }
+                }
+            )
+            .subscribe((status, err) => {
+                if (status === 'SUBSCRIBED') {
+                    console.log('Successfully subscribed to team chat channel!');
+                }
+                if (status === 'CHANNEL_ERROR') {
+                    console.error('Team chat channel error:', err);
+                    addToast(`Koneksi real-time chat gagal: ${err?.message}`, 'error');
+                }
+                if (status === 'TIMED_OUT') {
+                    console.warn('Team chat subscription timed out.');
+                    addToast('Koneksi real-time chat timeout.', 'info');
+                }
+            });
+
+        return () => {
+            supabase.removeChannel(chatChannel);
+        };
+    }, [user, addToast]);
+    
+    const markChatAsRead = useCallback(() => {
+        if (!user) return;
+        localStorage.setItem(lastChatCheckKey, new Date().toISOString());
+        setUnreadChatCount(0);
+    }, [user, lastChatCheckKey]);
     
     const performDbOperation = async (operation: PromiseLike<{ error: any | null }>, successMessage: string) => {
         const { error } = await operation;
@@ -258,7 +371,17 @@ export const useAppData = (user: User | undefined) => {
        return newRecord as unknown as Customer;
     };
     const updateCustomer = (id: number, data: Partial<Omit<Customer, 'id'|'created_at'>>) => performDbOperation(supabase.from('customers').update(data).eq('id', id), 'Pelanggan berhasil diperbarui.');
-    const deleteCustomer = (id: number) => performDbOperation(supabase.from('customers').delete().eq('id', id), 'Pelanggan berhasil dihapus.');
+    const deleteCustomer = async (id: number) => {
+        const originalData = [...customers];
+        setCustomers(prev => prev.filter(item => item.id !== id));
+        addToast('Pelanggan berhasil dihapus.', 'success');
+        const { error } = await supabase.from('customers').delete().eq('id', id);
+        if (error) {
+            addToast(`Gagal menghapus pelanggan: ${error.message}`, 'error');
+            setCustomers(originalData);
+        }
+    };
+
 
     const addEmployee = async (data: Omit<Employee, 'id'|'created_at'>, password: string) => {
         if (!data.email) { addToast('Email diperlukan.', 'error'); throw new Error('Email is required'); }
@@ -272,7 +395,17 @@ export const useAppData = (user: User | undefined) => {
         }
     };
     const updateEmployee = (id: number, data: Partial<Omit<Employee, 'id'|'created_at'>>) => performDbOperation(supabase.from('employees').update(data).eq('id', id), 'User berhasil diperbarui.');
-    const deleteEmployee = (id: number) => performDbOperation(supabase.from('employees').delete().eq('id', id), 'User berhasil dihapus.');
+    const deleteEmployee = async (id: number) => {
+        const originalData = [...employees];
+        setEmployees(prev => prev.filter(item => item.id !== id));
+        addToast('User berhasil dihapus.', 'success');
+        const { error } = await supabase.from('employees').delete().eq('id', id);
+        if (error) {
+            addToast(`Gagal menghapus user: ${error.message}`, 'error');
+            setEmployees(originalData);
+        }
+    };
+
 
     const addBahan = async (data: Omit<Bahan, 'id' | 'created_at' | 'stock_qty'>) => {
         const { data: newRecord, error } = await supabase.from('bahan').insert({...data, stock_qty: 0}).select().single();
@@ -281,7 +414,16 @@ export const useAppData = (user: User | undefined) => {
         return newRecord as unknown as Bahan;
     };
     const updateBahan = (id: number, data: Partial<Omit<Bahan, 'id'|'created_at'>>) => performDbOperation(supabase.from('bahan').update(data).eq('id', id), 'Bahan berhasil diperbarui.');
-    const deleteBahan = (id: number) => performDbOperation(supabase.from('bahan').delete().eq('id', id), 'Bahan berhasil dihapus.');
+    const deleteBahan = async (id: number) => {
+        const originalData = [...bahanList];
+        setBahanList(prev => prev.filter(item => item.id !== id));
+        addToast('Bahan berhasil dihapus.', 'success');
+        const { error } = await supabase.from('bahan').delete().eq('id', id);
+        if (error) {
+            addToast(`Gagal menghapus bahan: ${error.message}`, 'error');
+            setBahanList(originalData);
+        }
+    };
 
     const addBank = async (data: Omit<Bank, 'id' | 'created_at'>) => {
         const { data: newRecord, error } = await supabase.from('banks').insert(data).select().single();
@@ -290,7 +432,17 @@ export const useAppData = (user: User | undefined) => {
         return newRecord as unknown as Bank;
     };
     const updateBank = (id: number, data: Partial<Omit<Bank, 'id'|'created_at'>>) => performDbOperation(supabase.from('banks').update(data).eq('id', id), 'Sumber dana berhasil diperbarui.');
-    const deleteBank = (id: number) => performDbOperation(supabase.from('banks').delete().eq('id', id), 'Sumber dana berhasil dihapus.');
+    const deleteBank = async (id: number) => {
+        const originalData = [...banks];
+        setBanks(prev => prev.filter(item => item.id !== id));
+        addToast('Sumber dana berhasil dihapus.', 'success');
+        const { error } = await supabase.from('banks').delete().eq('id', id);
+        if (error) {
+            addToast(`Gagal menghapus sumber dana: ${error.message}`, 'error');
+            setBanks(originalData);
+        }
+    };
+
     
     const addAsset = async (data: Omit<Asset, 'id'|'created_at'|'is_dynamic'>) => {
         const { data: newRecord, error } = await supabase.from('assets').insert(data).select().single();
@@ -299,7 +451,16 @@ export const useAppData = (user: User | undefined) => {
         return newRecord as unknown as Asset;
     };
     const updateAsset = (id: number, data: Partial<Omit<Asset, 'id'|'created_at'|'is_dynamic'>>) => performDbOperation(supabase.from('assets').update(data).eq('id', id), 'Aset berhasil diperbarui.');
-    const deleteAsset = (id: number) => performDbOperation(supabase.from('assets').delete().eq('id', id), 'Aset berhasil dihapus.');
+    const deleteAsset = async (id: number) => {
+        const originalData = [...assets];
+        setAssets(prev => prev.filter(item => item.id !== id));
+        addToast('Aset berhasil dihapus.', 'success');
+        const { error } = await supabase.from('assets').delete().eq('id', id);
+        if (error) {
+            addToast(`Gagal menghapus aset: ${error.message}`, 'error');
+            setAssets(originalData);
+        }
+    };
 
     const addDebt = async (data: Omit<Debt, 'id'|'created_at'>) => {
         const { data: newRecord, error } = await supabase.from('debts').insert(data).select().single();
@@ -308,7 +469,17 @@ export const useAppData = (user: User | undefined) => {
         return newRecord as unknown as Debt;
     };
     const updateDebt = (id: number, data: Partial<Omit<Debt, 'id'|'created_at'>>) => performDbOperation(supabase.from('debts').update(data).eq('id', id), 'Data hutang berhasil diperbarui.');
-    const deleteDebt = (id: number) => performDbOperation(supabase.from('debts').delete().eq('id', id), 'Data hutang berhasil dihapus.');
+    const deleteDebt = async (id: number) => {
+        const originalData = [...debts];
+        setDebts(prev => prev.filter(item => item.id !== id));
+        addToast('Data hutang berhasil dihapus.', 'success');
+        const { error } = await supabase.from('debts').delete().eq('id', id);
+        if (error) {
+            addToast(`Gagal menghapus data hutang: ${error.message}`, 'error');
+            setDebts(originalData);
+        }
+    };
+
 
     const addSupplier = async (data: Omit<Supplier, 'id'|'created_at'>) => {
         const { data: newRecord, error } = await supabase.from('suppliers').insert(data).select().single();
@@ -317,7 +488,17 @@ export const useAppData = (user: User | undefined) => {
         return newRecord as unknown as Supplier;
     };
     const updateSupplier = (id: number, data: Partial<Omit<Supplier, 'id'|'created_at'>>) => performDbOperation(supabase.from('suppliers').update(data).eq('id', id), 'Suplier berhasil diperbarui.');
-    const deleteSupplier = (id: number) => performDbOperation(supabase.from('suppliers').delete().eq('id', id), 'Suplier berhasil dihapus.');
+    const deleteSupplier = async (id: number) => {
+        const originalData = [...suppliers];
+        setSuppliers(prev => prev.filter(item => item.id !== id));
+        addToast('Suplier berhasil dihapus.', 'success');
+        const { error } = await supabase.from('suppliers').delete().eq('id', id);
+        if (error) {
+            addToast(`Gagal menghapus suplier: ${error.message}`, 'error');
+            setSuppliers(originalData);
+        }
+    };
+    
     
     const addFinishing = async (data: Omit<Finishing, 'id' | 'created_at'>) => {
         const { data: newRecord, error } = await supabase.from('finishings').insert(data).select().single();
@@ -326,7 +507,17 @@ export const useAppData = (user: User | undefined) => {
         return newRecord as unknown as Finishing;
     };
     const updateFinishing = (id: number, data: Partial<Omit<Finishing, 'id'|'created_at'>>) => performDbOperation(supabase.from('finishings').update(data).eq('id', id), 'Finishing berhasil diperbarui.');
-    const deleteFinishing = (id: number) => performDbOperation(supabase.from('finishings').delete().eq('id', id), 'Finishing berhasil dihapus.');
+    const deleteFinishing = async (id: number) => {
+        const originalData = [...finishings];
+        setFinishings(prev => prev.filter(item => item.id !== id));
+        addToast('Finishing berhasil dihapus.', 'success');
+        const { error } = await supabase.from('finishings').delete().eq('id', id);
+        if (error) {
+            addToast(`Gagal menghapus finishing: ${error.message}`, 'error');
+            setFinishings(originalData);
+        }
+    };
+
 
     const addStockMovement = async (data: Omit<StockMovement, 'id' | 'created_at'>) => {
         const { error: moveError } = await supabase.from('stock_movements').insert(data);
@@ -359,7 +550,16 @@ export const useAppData = (user: User | undefined) => {
         }
     };
     const updateExpense = (id: number, data: Partial<Omit<Expense, 'id'|'created_at'>>) => performDbOperation(supabase.from('expenses').update(data).eq('id', id), 'Pengeluaran berhasil diperbarui.');
-    const deleteExpense = (id: number) => performDbOperation(supabase.from('expenses').delete().eq('id', id), 'Pengeluaran berhasil dihapus.');
+    const deleteExpense = async (id: number) => {
+        const originalData = [...expenses];
+        setExpenses(prev => prev.filter(item => item.id !== id));
+        addToast('Pengeluaran berhasil dihapus.', 'success');
+        const { error } = await supabase.from('expenses').delete().eq('id', id);
+        if (error) {
+            addToast(`Gagal menghapus pengeluaran: ${error.message}`, 'error');
+            setExpenses(originalData);
+        }
+    };
     
     const updateNotaSetting = async (settings: NotaSetting) => {
         await Promise.all([
@@ -445,21 +645,22 @@ export const useAppData = (user: User | undefined) => {
     };
 
     const deleteOrder = async (id: number) => {
-        let orderToDelete: Order | null | undefined = orders.find(o => o.id === id);
+        const originalOrders = [...orders];
+        const orderToDelete = originalOrders.find(o => o.id === id);
     
         if (!orderToDelete) {
-            const fetchedOrder = await fetchFullOrder(id);
-            if(!fetchedOrder) {
-                addToast(`Order dengan ID ${id} tidak ditemukan untuk dihapus.`, 'error');
-                throw new Error('Order not found for deletion.');
-            }
-            orderToDelete = fetchedOrder;
+            addToast(`Order dengan ID ${id} tidak ditemukan.`, 'error');
+            return;
         }
+        
+        // Optimistic UI update
+        setOrders(prev => prev.filter(o => o.id !== id));
+        addToast(`Order ${orderToDelete.no_nota} berhasil dihapus.`, 'success');
     
-        // If the order status indicates stock was deducted, we must restore it.
-        if (orderToDelete && ['Waiting', 'Proses', 'Ready', 'Delivered'].includes(orderToDelete.status_pesanan)) {
-            addToast(`Mengembalikan stok untuk nota ${orderToDelete.no_nota}...`, 'info');
-            try {
+        try {
+            // Handle stock restoration
+            if (['Waiting', 'Proses', 'Ready', 'Delivered'].includes(orderToDelete.status_pesanan)) {
+                addToast(`Mengembalikan stok untuk nota ${orderToDelete.no_nota}...`, 'info');
                 for (const item of orderToDelete.order_items) {
                     const finishing = finishings.find(f => f.id === item.finishing_id);
                     const panjang_tambahan = finishing?.panjang_tambahan || 0;
@@ -477,15 +678,18 @@ export const useAppData = (user: User | undefined) => {
                         });
                     }
                 }
-                addToast(`Stok untuk nota ${orderToDelete.no_nota} berhasil dikembalikan.`, 'success');
-            } catch (stockError: any) {
-                addToast(`Gagal mengembalikan stok: ${stockError.message}. Penghapusan order dibatalkan.`, 'error');
-                return; // Abort deletion if stock restoration fails
+                addToast(`Stok untuk nota ${orderToDelete.no_nota} berhasil dikembalikan.`, 'info');
             }
-        }
+            
+            // Perform the deletion from the database
+            const { error } = await supabase.from('orders').delete().eq('id', id);
+            if (error) throw error;
     
-        // Now, perform the actual deletion.
-        await performDbOperation(supabase.from('orders').delete().eq('id', id), 'Order berhasil dihapus.');
+        } catch (error: any) {
+            addToast(`Gagal menghapus order: ${error.message}`, 'error');
+            // Rollback UI on failure
+            setOrders(originalOrders);
+        }
     };
     
     const addPaymentToOrder = async (orderId: number, paymentData: Omit<Payment, 'id' | 'created_at' | 'order_id'>) => {
@@ -501,13 +705,14 @@ export const useAppData = (user: User | undefined) => {
         const totalPaid = originalOrder.payments.reduce((sum, p) => sum + p.amount, 0);
         const balanceDue = Math.max(0, totalBill - totalPaid);
     
-        if (balanceDue <= 0.01) {
+        if (balanceDue <= 0) {
             addToast('Tagihan ini sudah lunas.', 'info');
             return;
         }
         
-        const amountToRecord = Math.min(paymentData.amount, balanceDue);
-        const change = paymentData.amount - amountToRecord;
+        const userPayment = Math.round(paymentData.amount);
+        const amountToRecord = Math.min(userPayment, balanceDue);
+        const change = userPayment - amountToRecord;
         
         // Optimistic Update
         const newPayment: Payment = {
@@ -521,7 +726,7 @@ export const useAppData = (user: User | undefined) => {
         const updatedOrder = JSON.parse(JSON.stringify(originalOrder));
         updatedOrder.payments.push(newPayment);
         const newTotalPaid = updatedOrder.payments.reduce((sum: number, p: Payment) => sum + p.amount, 0);
-        const newStatus: PaymentStatus = newTotalPaid >= totalBill - 0.01 ? 'Lunas' : 'Belum Lunas';
+        const newStatus: PaymentStatus = newTotalPaid >= totalBill ? 'Lunas' : 'Belum Lunas';
         const statusChanged = updatedOrder.status_pembayaran !== newStatus;
         updatedOrder.status_pembayaran = newStatus;
         
@@ -540,7 +745,7 @@ export const useAppData = (user: User | undefined) => {
     
             if (paymentError) throw paymentError;
     
-            addToast(`Pembayaran ${formatCurrency(amountToRecord)} berhasil.` + (change > 0.01 ? ` Kembalian: ${formatCurrency(change)}` : ''), 'success');
+            addToast(`Pembayaran ${formatCurrency(amountToRecord)} berhasil.` + (change > 0 ? ` Kembalian: ${formatCurrency(change)}` : ''), 'success');
             
             if (statusChanged) {
                  const { error: orderError } = await supabase.from('orders').update({ status_pembayaran: newStatus }).eq('id', orderId);
@@ -564,7 +769,7 @@ export const useAppData = (user: User | undefined) => {
         totalPaymentAmount: number,
         ordersToPay: Order[]
     ) => {
-        let remainingPayment = totalPaymentAmount;
+        let remainingPayment = Math.round(totalPaymentAmount);
         const sortedOrders = [...ordersToPay].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
     
         const paymentInserts: Database['public']['Tables']['payments']['Insert'][] = [];
@@ -573,9 +778,10 @@ export const useAppData = (user: User | undefined) => {
             const totalBill = calculateOrderTotal(order, customers, bahanList);
             const totalPaid = order.payments.reduce((sum, p) => sum + p.amount, 0);
             const balanceDue = Math.max(0, totalBill - totalPaid);
-            if (balanceDue <= 0.01) continue;
+            if (balanceDue <= 0) continue;
             
             const amountToPay = Math.min(remainingPayment, balanceDue);
+            if (amountToPay <= 0) continue;
             paymentInserts.push({ ...paymentData, order_id: order.id, amount: amountToPay });
             remainingPayment -= amountToPay;
         }
@@ -725,11 +931,29 @@ export const useAppData = (user: User | undefined) => {
     // Payroll & Attendance CRUD
     const addPayrollConfig = (data: Omit<PayrollConfig, 'id'|'created_at'>) => performDbOperation(supabase.from('payroll_configs').insert(data), 'Konfigurasi gaji disimpan.');
     const updatePayrollConfig = (id: number, data: Partial<Omit<PayrollConfig, 'id'|'created_at'>>) => performDbOperation(supabase.from('payroll_configs').update(data).eq('id', id), 'Konfigurasi gaji diperbarui.');
-    const deletePayrollConfig = (id: number) => performDbOperation(supabase.from('payroll_configs').delete().eq('id', id), 'Konfigurasi gaji dihapus.');
+    const deletePayrollConfig = async (id: number) => {
+        const originalData = [...payrollConfigs];
+        setPayrollConfigs(prev => prev.filter(item => item.id !== id));
+        addToast('Konfigurasi gaji dihapus.', 'success');
+        const { error } = await supabase.from('payroll_configs').delete().eq('id', id);
+        if (error) {
+            addToast(`Gagal menghapus konfigurasi gaji: ${error.message}`, 'error');
+            setPayrollConfigs(originalData);
+        }
+    };
     
     const addAttendance = (data: Omit<Attendance, 'id'|'created_at'>) => performDbOperation(supabase.from('attendances').insert(data), 'Data absensi disimpan.');
     const updateAttendance = (id: number, data: Partial<Omit<Attendance, 'id'|'created_at'>>) => performDbOperation(supabase.from('attendances').update(data).eq('id', id), 'Data absensi diperbarui.');
-    const deleteAttendance = (id: number) => performDbOperation(supabase.from('attendances').delete().eq('id', id), 'Data absensi dihapus.');
+    const deleteAttendance = async (id: number) => {
+        const originalData = [...attendances];
+        setAttendances(prev => prev.filter(item => item.id !== id));
+        addToast('Data absensi dihapus.', 'success');
+        const { error } = await supabase.from('attendances').delete().eq('id', id);
+        if (error) {
+            addToast(`Gagal menghapus data absensi: ${error.message}`, 'error');
+            setAttendances(originalData);
+        }
+    };
 
     const addPayroll = (data: Omit<Payroll, 'id'|'created_at'>) => performDbOperation(supabase.from('payrolls').insert(data), 'Laporan gaji berhasil dikirim untuk persetujuan.');
     
@@ -801,8 +1025,36 @@ export const useAppData = (user: User | undefined) => {
     };
 
     const deletePayroll = async (id: number) => {
-        // The ON DELETE SET NULL constraint on attendances.payroll_id will handle un-archiving attendances.
-        await performDbOperation(supabase.from('payrolls').delete().eq('id', id), 'Laporan gaji berhasil dihapus.');
+        const originalData = [...payrolls];
+        setPayrolls(prev => prev.filter(item => item.id !== id));
+        addToast('Laporan gaji berhasil dihapus.', 'success');
+        const { error } = await supabase.from('payrolls').delete().eq('id', id);
+        if (error) {
+            addToast(`Gagal menghapus laporan gaji: ${error.message}`, 'error');
+            setPayrolls(originalData);
+        }
+    };
+
+    const addChatMessage = async (message: string) => {
+        if (!user) {
+            addToast('Anda harus login untuk mengirim pesan.', 'error');
+            return;
+        }
+        const employee = employees.find(e => e.user_id === user.id);
+        const senderName = employee ? employee.name : (user.email || 'User');
+    
+        const payload: Omit<TeamChatMessage, 'id' | 'created_at'> = {
+            user_id: user.id,
+            user_name: senderName,
+            message: message.trim(),
+        };
+    
+        const { error } = await supabase.from('team_chat').insert(payload);
+    
+        if (error) {
+            addToast(`Gagal mengirim pesan: ${error.message}`, 'error');
+            console.error('Chat error:', error);
+        }
     };
 
     const dynamicAssets = useMemo(() => {
@@ -823,6 +1075,7 @@ export const useAppData = (user: User | undefined) => {
         customers, addCustomer, updateCustomer, deleteCustomer,
         bahanList, addBahan, updateBahan, deleteBahan,
         orders, addOrder, updateOrder, deleteOrder, addPaymentToOrder, addBulkPaymentToOrders, updateOrderStatus, updateOrderItemStatus,
+        filters, setFilters,
         loadMoreOrders, hasMoreOrders, isOrderLoading,
         expenses, addExpense, updateExpense, deleteExpense,
         banks, addBank, updateBank, deleteBank,
@@ -838,5 +1091,7 @@ export const useAppData = (user: User | undefined) => {
         payrollConfigs, addPayrollConfig, updatePayrollConfig, deletePayrollConfig,
         attendances, addAttendance, updateAttendance, deleteAttendance,
         payrolls, addPayroll, updatePayroll, deletePayroll,
+        teamChatMessages, addChatMessage,
+        unreadChatCount, markChatAsRead,
     };
 };

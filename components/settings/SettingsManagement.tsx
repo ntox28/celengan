@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { Bank, Asset, Debt, Bahan, Finishing } from '../../lib/supabaseClient';
+import { Bank, Asset, Debt, Bahan, Finishing, Customer, Supplier } from '../../lib/supabaseClient';
 import BankManagement from './BankManagement';
 import BankIcon from '../icons/BankIcon';
 import AssetIcon from '../icons/AssetIcon';
@@ -39,6 +40,8 @@ interface SettingsProps {
     updateFinishing: (id: number, data: Partial<Omit<Finishing, 'id' | 'created_at'>>) => Promise<void>;
     deleteFinishing: (id: number) => Promise<void>;
     updateBahanStock: (bahanId: number, newStockQty: number, notes: string) => Promise<void>;
+    customers: Customer[];
+    suppliers: Supplier[];
 }
 
 const settingsTabs = [
@@ -49,7 +52,7 @@ const settingsTabs = [
     { name: 'Bank', icon: BankIcon, component: BankManagement, props: ['banks', 'addBank', 'updateBank', 'deleteBank'] },
     { name: 'Finishing', icon: FinishingIcon, component: FinishingManagement, props: ['finishings', 'addFinishing', 'updateFinishing', 'deleteFinishing'] },
     { name: 'Notifikasi', icon: BellIcon, component: NotificationSettings, props: [] },
-    { name: 'Impor & Ekspor Data', icon: DatabaseIcon, component: DataManagement, props: [] },
+    { name: 'Impor & Ekspor Data', icon: DatabaseIcon, component: DataManagement, props: ['customers', 'bahanList', 'suppliers', 'finishings'] },
 ];
 
 const SettingsManagement: React.FC<SettingsProps> = (props) => {

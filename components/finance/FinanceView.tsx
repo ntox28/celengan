@@ -49,7 +49,7 @@ const calculateOrderTotal = (order: Order, customers: Customer[], bahanList: Bah
     const customer = customers.find(c => c.id === order.pelanggan_id);
     if (!customer) return 0;
 
-    return order.order_items.reduce((total, item) => {
+    const total = order.order_items.reduce((total, item) => {
         const bahan = bahanList.find(b => b.id === item.bahan_id);
         if (!bahan) return total;
 
@@ -58,6 +58,7 @@ const calculateOrderTotal = (order: Order, customers: Customer[], bahanList: Bah
         const itemTotal = price * itemArea * item.qty;
         return total + itemTotal;
     }, 0);
+    return Math.round(total);
 };
 
 const OwnerFinancialView: React.FC<{ assets: Asset[], debts: Debt[], orders: Order[], expenses: Expense[] }> = ({ assets, debts, orders, expenses }) => {

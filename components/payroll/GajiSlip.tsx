@@ -17,26 +17,26 @@ const GajiSlip = forwardRef<HTMLDivElement, GajiSlipProps>(({ payroll, employee,
     const approverName = approver ? approver.name : 'Manager';
 
     return (
-        <div ref={ref} className="bg-white text-black p-8 font-sans text-xs" style={{ width: '210mm', boxSizing: 'border-box' }}>
+        <div ref={ref} className="bg-white text-black p-8 font-mono text-xs" style={{ width: '210mm', boxSizing: 'border-box' }}>
             {/* Header */}
             <header className="flex justify-between items-start pb-2 mb-2">
                 <div>
                     <h1 className="text-xl font-bold">NALA MEDIA</h1>
                     <p className="text-[9px] leading-tight">Jl. Prof. Moh. Yamin, Cerbonan, Karanganyar</p>
                 </div>
-                <h2 className="text-xl font-bold">SLIP GAJI</h2>
+                <h2 className="text-xl font-semibold mt-1">SLIP GAJI</h2>
             </header>
             <div className="border-t border-dashed border-black"></div>
             
             {/* Employee & Period Info */}
-            <section className="flex justify-between my-1 text-[10px]">
+            <section className="flex justify-between my-4 text-[10px]">
                 <div className="w-1/2 space-y-1">
                     <div className="flex"><span className="w-24 inline-block">NAMA</span>: {employee?.name || 'N/A'}</div>
                     <div className="flex"><span className="w-24 inline-block">DEVISI</span>: {employee?.position || 'N/A'}</div>
                 </div>
                 <div className="w-1/2 text-right space-y-1">
-                     <div className="flex justify-end"><span className="w-28 text-left inline-block"></span>Periode: {formatDate(payroll.period_start)} - {formatDate(payroll.period_end)}</div>
-                     <div className="flex justify-end"><span className="w-28 text-left inline-block"></span>Tanggal Cetak: {formatDate(new Date().toISOString())}</div>
+                     <div className="flex justify-end"><span className="w-28 text-left inline-block">PERIODE GAJI</span>: {formatDate(payroll.period_start)} - {formatDate(payroll.period_end)}</div>
+                     <div className="flex justify-end"><span className="w-28 text-left inline-block">TANGGAL CETAK</span>: {formatDate(new Date().toISOString())}</div>
                 </div>
             </section>
             
@@ -73,7 +73,8 @@ const GajiSlip = forwardRef<HTMLDivElement, GajiSlipProps>(({ payroll, employee,
                         <span>TOTAL PENDAPATAN (A)</span>
                         <span>{formatCurrency(totalPendapatan)}</span>
                     </div>
-                </div>           
+                </div>
+
                 {/* POTONGAN */}
                 <div>
                     <div className="font-bold mb-1">POTONGAN</div>
@@ -107,16 +108,16 @@ const GajiSlip = forwardRef<HTMLDivElement, GajiSlipProps>(({ payroll, employee,
             </section>
 
             {/* Signature */}
-            <footer className="mt-2 flex justify-between text-center text-[10px]">
+            <footer className="mt-12 flex justify-between text-center text-[10px]">
                 <div className="w-1/3">
                     <p>Disetujui Oleh,</p>
-                    <div className="h-1"></div>
-                    <p className="font-bold">( {approverName} )</p>
+                    <div className="h-16"></div>
+                    <p className="border-t border-black pt-1">( {approverName} )</p>
                 </div>
                  <div className="w-1/3">
                     <p>Diterima Oleh,</p>
-                    <div className="h-1"></div>
-                    <p className="font-bold">( {employee?.name} )</p>
+                    <div className="h-16"></div>
+                    <p className="border-t border-black pt-1">( {employee?.name} )</p>
                 </div>
             </footer>
         </div>

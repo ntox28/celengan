@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import EditIcon from '../icons/EditIcon';
 import TrashIcon from '../icons/TrashIcon';
@@ -81,7 +82,7 @@ const calculateTotal = (order: { pelanggan_id: number; order_items: Array<{ baha
     const customer = customers.find(c => c.id === order.pelanggan_id);
     if (!customer) return 0;
 
-    return order.order_items.reduce((total, item) => {
+    const total = order.order_items.reduce((total, item) => {
         const bahan = bahanList.find(b => b.id === item.bahan_id);
         if (!bahan || !item.bahan_id) return total;
 
@@ -92,6 +93,7 @@ const calculateTotal = (order: { pelanggan_id: number; order_items: Array<{ baha
         const itemTotal = price * itemArea * item.qty;
         return total + itemTotal;
     }, 0);
+    return Math.round(total);
 };
 
 interface OrderManagementProps {
@@ -114,6 +116,8 @@ interface OrderManagementProps {
     loadMoreOrders: () => void;
     hasMoreOrders: boolean;
     isOrderLoading: boolean;
+    filters: { customerId: string; startDate: string; endDate: string; orderStatus: string; searchQuery: string; };
+    setFilters: React.Dispatch<React.SetStateAction<any>>;
 }
 
 const initialCustomerData: Omit<Customer, 'id' | 'created_at'> = { name: '', email: '', phone: '', address: '', level: 'End Customer' };
@@ -196,7 +200,13 @@ const AddCustomerModal: React.FC<{
 };
 
 
-const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustomer, bahanList, orders, employees, finishings, addFinishing, updateFinishing, deleteFinishing, loggedInUser, addOrder, updateOrder, deleteOrder, updateOrderStatus, notaSetting, updateNotaSetting, loadMoreOrders, hasMoreOrders, isOrderLoading }) => {
+const OrderManagement: React.FC<OrderManagementProps> = (props) => {
+    const { 
+        customers, addCustomer, bahanList, orders, employees, finishings, addFinishing, 
+        updateFinishing, deleteFinishing, loggedInUser, addOrder, updateOrder, deleteOrder, 
+        updateOrderStatus, notaSetting, updateNotaSetting, loadMoreOrders, hasMoreOrders, 
+        isOrderLoading, filters, setFilters 
+    } = props;
     const [editingOrder, setEditingOrder] = useState<Order | null>(null);
     const [formData, setFormData] = useState<LocalOrder>(emptyOrder);
     const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
@@ -208,30 +218,11 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
     
     const [printableContent, setPrintableContent] = useState<React.ReactNode | null>(null);
     const formRef = useRef<HTMLDivElement>(null);
-    
-    const [filters, setFilters] = useState({
-        customerId: 'all',
-        startDate: '',
-        endDate: '',
-        status: 'all',
-    });
 
     const modalOrderTotal = useMemo(() => {
         if (!formData.pelanggan_id) return 0;
         return calculateTotal(formData, customers, bahanList);
     }, [formData, customers, bahanList]);
-
-    const filteredOrders = useMemo(() => {
-        return orders
-            .filter(order => {
-                const customerMatch = filters.customerId === 'all' || order.pelanggan_id === Number(filters.customerId);
-                const startDateMatch = !filters.startDate || order.tanggal >= filters.startDate;
-                const endDateMatch = !filters.endDate || order.tanggal <= filters.endDate;
-                const statusMatch = filters.status === 'all' || order.status_pembayaran === filters.status;
-                return customerMatch && startDateMatch && endDateMatch && statusMatch;
-            });
-            // Sorting is now handled by the initial fetch in useAppData
-    }, [orders, filters]);
 
     useEffect(() => {
         if (printableContent) {
@@ -264,7 +255,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
     };
 
     const handleFilterChange = (name: keyof typeof filters, value: string) => {
-        setFilters(prev => ({ ...prev, [name]: value }));
+        setFilters((prev: any) => ({ ...prev, [name]: value }));
     };
 
     const handleResetFilters = () => {
@@ -272,13 +263,18 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
             customerId: 'all',
             startDate: '',
             endDate: '',
-            status: 'all',
+            paymentStatus: 'all',
+            orderStatus: 'all',
+            searchQuery: '',
         });
     };
 
-    const paymentStatusOptions = [
-        { value: 'Belum Lunas', label: 'Belum Lunas' },
-        { value: 'Lunas', label: 'Lunas' },
+    const orderStatusOptions = [
+        { value: 'Pending', label: 'Pending' },
+        { value: 'Waiting', label: 'Waiting' },
+        { value: 'Proses', label: 'Proses' },
+        { value: 'Ready', label: 'Ready' },
+        { value: 'Delivered', label: 'Delivered' },
     ];
 
     const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -631,10 +627,13 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
                     <div className="xl:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col h-full">
                         <FilterBar
                             customers={customers}
-                            statusOptions={paymentStatusOptions}
-                            filters={filters}
-                            onFilterChange={handleFilterChange}
+                            statusOptions={orderStatusOptions}
+                            statusFilterName="orderStatus"
+                            filters={filters as any}
+                            onFilterChange={handleFilterChange as any}
                             onReset={handleResetFilters}
+                            showSearch={true}
+                            searchPlaceholder="Cari No. Nota..."
                         />
                         
                         <div className="flex-1 overflow-y-auto -mx-6 px-6">
@@ -650,7 +649,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customers, addCustome
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200 dark:divide-slate-700 md:divide-y-0">
-                                    {filteredOrders.map((order) => (
+                                    {orders.map((order) => (
                                        <React.Fragment key={order.id}>
                                         <tr 
                                             className={`hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors duration-200 ${editingOrder?.id === order.id ? 'bg-pink-50 dark:bg-pink-900/20' : ''}`}

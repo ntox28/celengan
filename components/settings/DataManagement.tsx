@@ -1,72 +1,25 @@
-import React, { useState, useCallback } from 'react';
-import { supabase, CustomerLevel, Database } from '../../lib/supabaseClient';
+
+import React, { useState } from 'react';
+import { supabase, CustomerLevel, Database, Customer, Bahan, Supplier, Finishing } from '../../lib/supabaseClient';
 import { useToast } from '../../hooks/useToast';
 import DownloadIcon from '../icons/DownloadIcon';
 import UploadIcon from '../icons/UploadIcon';
-import ExclamationCircleIcon from '../icons/ExclamationCircleIcon';
 
 declare const XLSX: any;
 
-const tablesToBackup: (keyof Database['public']['Tables'])[] = [
-    'customers', 'employees', 'bahan', 'expenses', 'orders', 'order_items', 'payments',
-    'banks', 'assets', 'debts', 'suppliers', 'stock_movements', 'finishings', 
-    'settings', 'printers', 'display_settings'
-];
-
 type InsertPayload<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Insert'];
 
-const DataManagement: React.FC = () => {
-    const [isExporting, setIsExporting] = useState(false);
-    const [isImporting, setIsImporting] = useState(false);
+interface DataManagementProps {
+    customers: Customer[];
+    bahanList: Bahan[];
+    suppliers: Supplier[];
+    finishings: Finishing[];
+}
+
+const DataManagement: React.FC<DataManagementProps> = ({ customers, bahanList, suppliers, finishings }) => {
     const [isExcelImporting, setIsExcelImporting] = useState(false);
-    const [importFile, setImportFile] = useState<File | null>(null);
     const [excelFile, setExcelFile] = useState<File | null>(null);
     const { addToast } = useToast();
-
-    const handleExport = useCallback(async () => {
-        setIsExporting(true);
-        addToast('Memulai proses ekspor data...', 'info');
-
-        try {
-            const backupData: Record<string, any[]> = {};
-            for (const table of tablesToBackup) {
-                const { data, error } = await supabase.from(table).select('*');
-                if (error) throw new Error(`Gagal mengambil data dari tabel ${table}: ${error.message}`);
-                backupData[table] = data;
-            }
-            
-            const jsonString = JSON.stringify(backupData, null, 2);
-            const blob = new Blob([jsonString], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            
-            const link = document.createElement('a');
-            link.href = url;
-            const date = new Date().toISOString().split('T')[0];
-            link.download = `celengan_backup_${date}.json`;
-            
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            URL.revokeObjectURL(url);
-            addToast('Ekspor data berhasil!', 'success');
-        } catch (error: any) {
-            console.error("Export failed:", error);
-            addToast(`Ekspor Gagal: ${error.message}`, 'error');
-        } finally {
-            setIsExporting(false);
-        }
-    }, [addToast]);
-
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file && file.type === 'application/json') {
-            setImportFile(file);
-        } else {
-            addToast('Harap pilih file .json yang valid.', 'error');
-            setImportFile(null);
-        }
-    };
 
     const handleExcelFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -79,42 +32,6 @@ const DataManagement: React.FC = () => {
         }
     };
 
-    const handleImport = async () => {
-        if (!importFile) {
-            addToast('Tidak ada file yang dipilih untuk diimpor.', 'error');
-            return;
-        }
-
-        const confirmation = window.prompt("Operasi ini akan MENGHAPUS SEMUA DATA saat ini dan menggantinya. Tindakan ini tidak dapat diurungkan. Ketik 'IMPOR DATA' untuk melanjutkan.");
-        if (confirmation !== 'IMPOR DATA') {
-            addToast('Proses impor dibatalkan.', 'info');
-            return;
-        }
-
-        setIsImporting(true);
-        addToast('Memulai proses impor data...', 'info');
-
-        try {
-            const fileContent = await importFile.text();
-            const backupData = JSON.parse(fileContent);
-
-            const { error } = await supabase.rpc('import_backup_data', { backup_data: backupData });
-
-            if (error) {
-                throw new Error(error.message);
-            }
-
-            addToast('Impor data berhasil! Aplikasi akan dimuat ulang.', 'success');
-            setTimeout(() => window.location.reload(), 2000);
-        } catch (error: any) {
-            console.error("Import failed:", error);
-            addToast(`Impor Gagal: ${error.message}`, 'error');
-        } finally {
-            setIsImporting(false);
-            setImportFile(null);
-        }
-    };
-    
     const handleDownloadTemplate = () => {
         const wb = XLSX.utils.book_new();
 
@@ -247,6 +164,60 @@ const DataManagement: React.FC = () => {
         reader.readAsArrayBuffer(excelFile);
     };
 
+    const handleExport = (dataType: 'customers' | 'bahan' | 'suppliers' | 'finishings') => {
+        let dataToExport: any[] = [];
+        const filename = `export_${dataType}_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+        switch (dataType) {
+            case 'customers':
+                dataToExport = customers.map(c => ({
+                    'Nama': c.name,
+                    'Level': c.level,
+                    'Email': c.email,
+                    'Telepon': c.phone,
+                    'Alamat': c.address
+                }));
+                break;
+            case 'bahan':
+                dataToExport = bahanList.map(b => ({
+                    'Nama Bahan': b.name,
+                    'Harga End Customer': b.harga_end_customer,
+                    'Harga Retail': b.harga_retail,
+                    'Harga Grosir': b.harga_grosir,
+                    'Harga Reseller': b.harga_reseller,
+                    'Harga Corporate': b.harga_corporate,
+                    'Stok (m²)': b.stock_qty || 0
+                }));
+                break;
+            case 'suppliers':
+                dataToExport = suppliers.map(s => ({
+                    'Nama Suplier': s.name,
+                    'Kontak Person': s.contact_person,
+                    'Telepon': s.phone,
+                    'Spesialisasi': s.specialty
+                }));
+                break;
+            case 'finishings':
+                dataToExport = finishings.map(f => ({
+                    'Nama Finishing': f.name,
+                    'Panjang Tambahan (m)': f.panjang_tambahan,
+                    'Lebar Tambahan (m)': f.lebar_tambahan
+                }));
+                break;
+        }
+
+        if (dataToExport.length === 0) {
+            addToast(`Tidak ada data ${dataType} untuk diekspor.`, 'info');
+            return;
+        }
+
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, dataType.charAt(0).toUpperCase() + dataType.slice(1));
+        XLSX.writeFile(workbook, filename);
+        addToast(`Data ${dataType} berhasil diekspor.`, 'success');
+    };
+
 
     return (
         <div className="space-y-8">
@@ -278,74 +249,44 @@ const DataManagement: React.FC = () => {
                         <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-2">Impor Data</h4>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Klik untuk memulai proses penambahan data baru ke sistem.</p>
                         <button onClick={handleExcelImport} disabled={isExcelImporting || !excelFile} className="w-full text-sm flex justify-center items-center gap-2 px-4 py-2 rounded-lg text-white bg-pink-600 hover:bg-pink-700 transition-colors disabled:bg-pink-300">
-                             {isExcelImporting ? 'Mengimpor...' : 'Impor dari Excel'}
+                             {isExcelImporting ? 'Mengimpor...' : <><UploadIcon className="w-4 h-4" /> Impor dari Excel</>}
                         </button>
                     </div>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
-                    <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">Ekspor Data Cadangan (JSON)</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Simpan salinan semua data (termasuk transaksi) ke dalam satu file JSON.</p>
+             <div className="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
+                <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">Ekspor Data ke Excel</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Unduh data yang ada di sistem ke dalam format file Excel (.xlsx). Ini berguna untuk membuat cadangan atau analisis data secara offline.</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <button
-                        onClick={handleExport}
-                        disabled={isExporting}
-                        className="w-full flex justify-center items-center gap-2 px-6 py-3 rounded-lg text-white bg-cyan-600 hover:bg-cyan-700 transition-colors disabled:bg-cyan-300"
+                        onClick={() => handleExport('customers')}
+                        className="w-full text-sm flex flex-col items-center justify-center gap-2 px-4 py-3 rounded-lg text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                     >
-                        {isExporting ? (
-                            <>
-                                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                Mengekspor...
-                            </>
-                        ) : (
-                            <>
-                                <DownloadIcon className="w-5 h-5" />
-                                Ekspor Cadangan Lengkap
-                            </>
-                        )}
+                        <DownloadIcon className="w-6 h-6" />
+                        <span>Ekspor Pelanggan</span>
                     </button>
-                </div>
-
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
-                    <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">Impor & Pulihkan (JSON)</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Pulihkan data dari file cadangan JSON.</p>
-                    
-                    <div className="bg-red-100 dark:bg-red-900/40 border-l-4 border-red-500 text-red-700 dark:text-red-200 p-4 mb-6" role="alert">
-                        <div className="flex">
-                            <div className="py-1"><ExclamationCircleIcon className="w-6 h-6 text-red-500 mr-4"/></div>
-                            <div>
-                                <p className="font-bold">PERINGATAN!</p>
-                                <p className="text-sm">Tindakan ini akan <strong className="uppercase">menghapus semua data yang ada</strong> dan menggantinya dengan data dari file cadangan.</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="space-y-4">
-                        <input
-                            type="file"
-                            accept=".json"
-                            onChange={handleFileChange}
-                            className="block w-full text-sm text-slate-500 dark:text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-slate-50 dark:file:bg-slate-700 file:text-slate-700 dark:file:text-slate-300 hover:file:bg-slate-100 dark:hover:file:bg-slate-600"
-                        />
-                        <button
-                            onClick={handleImport}
-                            disabled={isImporting || !importFile}
-                            className="w-full flex justify-center items-center gap-2 px-6 py-3 rounded-lg text-white bg-red-600 hover:bg-red-700 transition-colors disabled:bg-red-300 disabled:cursor-not-allowed"
-                        >
-                            {isImporting ? (
-                                 <>
-                                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                    Mengimpor...
-                                </>
-                            ) : (
-                                <>
-                                    <UploadIcon className="w-5 h-5" />
-                                    Impor & Ganti Semua Data
-                                </>
-                            )}
-                        </button>
-                    </div>
+                    <button
+                        onClick={() => handleExport('bahan')}
+                        className="w-full text-sm flex flex-col items-center justify-center gap-2 px-4 py-3 rounded-lg text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                    >
+                        <DownloadIcon className="w-6 h-6" />
+                        <span>Ekspor Bahan</span>
+                    </button>
+                    <button
+                        onClick={() => handleExport('suppliers')}
+                        className="w-full text-sm flex flex-col items-center justify-center gap-2 px-4 py-3 rounded-lg text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                    >
+                        <DownloadIcon className="w-6 h-6" />
+                        <span>Ekspor Suplier</span>
+                    </button>
+                    <button
+                        onClick={() => handleExport('finishings')}
+                        className="w-full text-sm flex flex-col items-center justify-center gap-2 px-4 py-3 rounded-lg text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                    >
+                        <DownloadIcon className="w-6 h-6" />
+                        <span>Ekspor Finishing</span>
+                    </button>
                 </div>
             </div>
         </div>

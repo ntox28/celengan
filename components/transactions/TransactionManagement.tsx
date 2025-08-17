@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import html2canvas from 'html2canvas';
 import { Customer, CustomerLevel, Bahan, Order, Payment, PaymentStatus, ProductionStatus, Employee, User as AuthUser, Bank, Finishing, OrderStatus } from '../../lib/supabaseClient';
@@ -5,7 +6,6 @@ import PrintIcon from '../icons/PrintIcon';
 import WhatsAppIcon from '../icons/WhatsAppIcon';
 import ImageIcon from '../icons/ImageIcon';
 import Nota from './Nota';
-import Pagination from '../Pagination';
 import FilterBar from '../FilterBar';
 import StatCard from '../dashboard/StatCard';
 import TrendingUpIcon from '../icons/TrendingUpIcon';
@@ -28,6 +28,11 @@ interface TransactionManagementProps {
     addBulkPaymentToOrders: (paymentData: Omit<Payment, 'id' | 'created_at' | 'order_id' | 'amount'>, totalPaymentAmount: number, ordersToPay: Order[]) => Promise<void>;
     banks: Bank[];
     finishings: Finishing[];
+    loadMoreOrders: () => void;
+    hasMoreOrders: boolean;
+    isOrderLoading: boolean;
+    filters: { customerId: string; startDate: string; endDate: string; paymentStatus: string; };
+    setFilters: React.Dispatch<React.SetStateAction<any>>;
 }
 
 const formatCurrency = (value: number) => {
@@ -77,7 +82,11 @@ const calculateTotalPaid = (order: Order): number => {
     return order.payments.reduce((sum, payment) => sum + payment.amount, 0);
 };
 
-const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, customers, bahanList, loggedInUser, employees, addPaymentToOrder, addBulkPaymentToOrders, banks, finishings }) => {
+const TransactionManagement: React.FC<TransactionManagementProps> = (props) => {
+    const { 
+        orders, customers, bahanList, loggedInUser, employees, addPaymentToOrder, addBulkPaymentToOrders, 
+        banks, finishings, loadMoreOrders, hasMoreOrders, isOrderLoading, filters, setFilters 
+    } = props;
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isBulkPayModalOpen, setIsBulkPayModalOpen] = useState(false);
     const [isCustomerReportModalOpen, setIsCustomerReportModalOpen] = useState(false);
@@ -94,18 +103,10 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
     const notaGambarRef = useRef<HTMLDivElement>(null);
     const strukRef = useRef<HTMLDivElement>(null);
     const actionMenuRef = useRef<HTMLDivElement>(null);
-    const [currentPage, setCurrentPage] = useState(1);
     const { addToast } = useToast();
-    const ITEMS_PER_PAGE = 5;
     
     const [printableContent, setPrintableContent] = useState<React.ReactNode | null>(null);
     
-    const [filters, setFilters] = useState({
-        customerId: 'all',
-        startDate: '',
-        endDate: '',
-        status: 'all',
-    });
     const [customerReportFilters, setCustomerReportFilters] = useState({
         customerId: 'all',
         status: 'all',
@@ -117,7 +118,7 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
         const customer = customers.find(c => c.id === order.pelanggan_id);
         if (!customer) return 0;
 
-        return order.order_items.reduce((total, item) => {
+        const total = order.order_items.reduce((total, item) => {
             const bahan = bahanList.find(b => b.id === item.bahan_id);
             if (!bahan) return total;
 
@@ -126,6 +127,7 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
             const itemTotal = price * itemArea * item.qty;
             return total + itemTotal;
         }, 0);
+        return Math.round(total);
     };
     
     useEffect(() => {
@@ -176,19 +178,8 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
     }, [orders, customers, bahanList]);
 
     const transactions = useMemo(() => {
-        return orders
-            .filter(order => {
-                if (!['Waiting', 'Proses', 'Ready', 'Delivered'].includes(order.status_pesanan)) return false;
-
-                const customerMatch = filters.customerId === 'all' || order.pelanggan_id === Number(filters.customerId);
-                const startDateMatch = !filters.startDate || order.tanggal >= filters.startDate;
-                const endDateMatch = !filters.endDate || order.tanggal <= filters.endDate;
-                const statusMatch = filters.status === 'all' || order.status_pembayaran === filters.status;
-                
-                return customerMatch && startDateMatch && endDateMatch && statusMatch;
-            })
-            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    }, [orders, filters]);
+        return orders.filter(order => ['Waiting', 'Proses', 'Ready', 'Delivered'].includes(order.status_pesanan));
+    }, [orders]);
     
     const unpaidTransactions = useMemo(() => transactions.filter(t => t.status_pembayaran !== 'Lunas'), [transactions]);
     const totalUnpaidAmount = useMemo(() => {
@@ -199,13 +190,6 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
         }, 0);
     }, [unpaidTransactions, customers, bahanList]);
 
-    const totalPages = Math.ceil(transactions.length / ITEMS_PER_PAGE);
-    const currentTransactions = transactions.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
-
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [filters]);
-    
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
             if (actionMenuRef.current && !actionMenuRef.current.contains(event.target as Node)) {
@@ -219,7 +203,7 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
     }, [actionMenuRef]);
 
     const handleFilterChange = (name: keyof typeof filters, value: string) => {
-        setFilters(prev => ({ ...prev, [name]: value }));
+        setFilters((prev: any) => ({ ...prev, [name]: value }));
     };
 
     const handleResetFilters = () => {
@@ -227,7 +211,9 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
             customerId: 'all',
             startDate: '',
             endDate: '',
-            status: 'all',
+            paymentStatus: 'all',
+            orderStatus: 'all',
+            searchQuery: '',
         });
     };
 
@@ -598,8 +584,9 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
                 <FilterBar
                     customers={customers}
                     statusOptions={paymentStatusOptions}
-                    filters={filters}
-                    onFilterChange={handleFilterChange}
+                    statusFilterName="paymentStatus"
+                    filters={filters as any}
+                    onFilterChange={handleFilterChange as any}
                     onReset={handleResetFilters}
                 />
 
@@ -618,7 +605,7 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200 dark:divide-slate-700 md:divide-y-0">
-                                {currentTransactions.map((order) => {
+                                {transactions.map((order) => {
                                     const total = calculateTotal(order);
                                     return (
                                         <tr 
@@ -670,8 +657,17 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ orders, c
                             </tbody>
                         </table>
                     </div>
-
-                    <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+                     <div className="flex justify-center items-center mt-6 py-2 flex-shrink-0">
+                         {hasMoreOrders && (
+                            <button
+                                onClick={loadMoreOrders}
+                                disabled={isOrderLoading}
+                                className="w-full sm:w-auto px-8 py-3 rounded-lg text-white bg-pink-600 hover:bg-pink-700 transition-colors disabled:bg-pink-300 disabled:cursor-wait"
+                            >
+                                {isOrderLoading ? 'Memuat...' : 'Muat Lebih Banyak'}
+                            </button>
+                        )}
+                    </div>
                     </>
                 ) : (
                      <div className="flex-1 flex flex-col items-center justify-center text-center">

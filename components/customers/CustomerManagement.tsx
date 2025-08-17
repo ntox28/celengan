@@ -6,6 +6,7 @@ import Pagination from '../Pagination';
 import { useToast } from '../../hooks/useToast';
 import { Customer, CustomerLevel } from '../../lib/supabaseClient';
 import SearchIcon from '../icons/SearchIcon';
+import { useDebounce } from '../../hooks/useDebounce';
 
 interface CustomerManagementProps {
     customers: Customer[];
@@ -37,21 +38,23 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ customers, addC
     const ITEMS_PER_PAGE = 10;
     const formRef = useRef<HTMLDivElement>(null);
     
+    const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchQuery]);
+    }, [debouncedSearchQuery]);
 
     const filteredCustomers = useMemo(() => {
-        if (!searchQuery) {
+        if (!debouncedSearchQuery) {
             return customers;
         }
-        const lowercasedQuery = searchQuery.toLowerCase();
+        const lowercasedQuery = debouncedSearchQuery.toLowerCase();
         return customers.filter(customer =>
             customer.name.toLowerCase().includes(lowercasedQuery) ||
             customer.email.toLowerCase().includes(lowercasedQuery) ||
             customer.phone.toLowerCase().includes(lowercasedQuery)
         );
-    }, [customers, searchQuery]);
+    }, [customers, debouncedSearchQuery]);
 
     const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE);
     const currentCustomers = filteredCustomers.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
@@ -230,7 +233,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ customers, addC
                     </table>
                      {filteredCustomers.length === 0 && (
                         <div className="text-center py-10">
-                            <p className="text-slate-500">Tidak ada pelanggan yang cocok dengan pencarian '{searchQuery}'.</p>
+                            <p className="text-slate-500">Tidak ada pelanggan yang cocok dengan pencarian '{debouncedSearchQuery}'.</p>
                         </div>
                     )}
                 </div>

@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+
+
+import React, { useState, useEffect, useMemo } from 'react';
 import CustomerManagement from './customers/CustomerManagement';
 import { EmployeePosition, User as AuthUser, YouTubePlaylistItem } from '../lib/supabaseClient';
 import EmployeeManagement from './employees/EmployeeManagement';
@@ -13,13 +15,14 @@ import MenuIcon from './icons/MenuIcon';
 import { useAppData } from '../hooks/useAppData';
 import SupplierManagement from './suppliers/SupplierManagement';
 import StockManagement from './stock/StockManagement';
-import YouTubeIcon from './icons/YouTubeIcon';
-import YouTubePlaylistModal from './settings/YouTubePlaylistModal';
-import PlusIcon from './icons/PlusIcon';
 import { useToast } from '../hooks/useToast';
 import WarehouseManagement from './warehouse/WarehouseManagement';
 import PayrollManagement from './payroll/PayrollManagement';
 import PayrollSettingsManagement from './payroll/PayrollSettingsManagement';
+import BellIcon from './icons/BellIcon';
+import NotificationPanel from './notifications/NotificationPanel';
+import SendIcon from './icons/SendIcon';
+import ChatPanel from './chat/ChatPanel';
 
 type MainContentProps = {
   user: AuthUser;
@@ -40,6 +43,33 @@ const WelcomeContent: React.FC<{ user: AuthUser; activeView: string }> = ({ user
     </div>
 );
 
+// Helper function to safely parse playlist data which might be an array, a JSON string, or a single URL string.
+const parsePlaylistData = (rawData: any): YouTubePlaylistItem[] => {
+  if (Array.isArray(rawData)) {
+    // Ensure all items are valid objects before returning
+    return rawData.filter(item => typeof item === 'object' && item !== null && 'url' in item && 'title' in item);
+  }
+
+  if (typeof rawData === 'string' && rawData.trim()) {
+    try {
+      const parsed = JSON.parse(rawData);
+      if (Array.isArray(parsed)) {
+        // Ensure all items in parsed array are valid
+        return parsed.filter(item => typeof item === 'object' && item !== null && 'url' in item && 'title' in item);
+      }
+    } catch (e) {
+      // Not a valid JSON string, might be a single URL
+      if (rawData.startsWith('http')) {
+        return [{ url: rawData, title: 'Judul tidak ditemukan' }];
+      }
+      // console.error is probably too loud for something that might be intentionally empty/malformed
+      console.warn('Could not parse youtube_url from settings. It was not a valid JSON array or a URL.', rawData);
+    }
+  }
+
+  return [];
+};
+
 
 const MainContent: React.FC<MainContentProps> = (props) => {
   const { 
@@ -48,6 +78,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
     bahanList, addBahan, updateBahan, deleteBahan,
     employees, addEmployee, updateEmployee, deleteEmployee,
     orders, addOrder, updateOrder, deleteOrder, addPaymentToOrder, updateOrderStatus, updateOrderItemStatus,
+    filters, setFilters,
     loadMoreOrders, hasMoreOrders, isOrderLoading,
     expenses, addExpense, updateExpense, deleteExpense,
     banks, addBank, updateBank, deleteBank,
@@ -59,75 +90,67 @@ const MainContent: React.FC<MainContentProps> = (props) => {
     finishings, addFinishing, updateFinishing, deleteFinishing,
     addBulkPaymentToOrders,
     updateBahanStock,
-    displaySettings,
-    updateYouTubePlaylist,
     payrollConfigs, addPayrollConfig, updatePayrollConfig, deletePayrollConfig,
     attendances, addAttendance, updateAttendance, deleteAttendance,
     payrolls, addPayroll, updatePayroll, deletePayroll,
+    teamChatMessages, addChatMessage,
+    unreadChatCount, markChatAsRead,
     onToggleSidebar
   } = props;
-  
-  const { addToast } = useToast();
-  const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
-  const [newYoutubeUrl, setNewYoutubeUrl] = useState('');
-  const [isAddingUrl, setIsAddingUrl] = useState(false);
-  const [stagedPlaylist, setStagedPlaylist] = useState<YouTubePlaylistItem[]>([]);
-
-  useEffect(() => {
-    setStagedPlaylist(displaySettings?.youtube_url || []);
-  }, [displaySettings]);
   
   const employee = employees.find(e => e.user_id === user.id);
   const userRole = employee?.position || (user.user_metadata as { userrole?: EmployeePosition })?.userrole || 'Kasir';
   const displayName = employee ? employee.name : (user.email || 'Pengguna');
   const avatarSeed = displayName;
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  
+  const [lastNotificationCheck, setLastNotificationCheck] = useState(() => {
+    return localStorage.getItem('celengan-app:lastNotificationCheck') || new Date(0).toISOString();
+  });
+  const [hasUnread, setHasUnread] = useState(false);
 
-  const handleClosePlaylistModal = () => {
-    setIsPlaylistModalOpen(false);
-    // Discard any staged changes by re-syncing from the source of truth
-    setStagedPlaylist(displaySettings?.youtube_url || []);
+  useEffect(() => {
+    const latestOrderDate = orders[0]?.created_at;
+    if (latestOrderDate && new Date(latestOrderDate) > new Date(lastNotificationCheck)) {
+        setHasUnread(true);
+    }
+  }, [orders, lastNotificationCheck]);
+
+  const notifications = useMemo(() => {
+    return orders
+        .slice(0, 10) // Get latest 10
+        .map(order => {
+            const customer = customers.find(c => c.id === order.pelanggan_id);
+            return {
+                id: order.id,
+                title: `Pesanan #${order.no_nota}`,
+                description: `Dari: ${customer?.name || 'N/A'}. Status: ${order.status_pesanan}`,
+                timestamp: order.created_at,
+                status: order.status_pesanan
+            };
+        });
+  }, [orders, customers]);
+  
+  const handleBellClick = () => {
+    if (!isNotificationOpen) {
+        const now = new Date().toISOString();
+        localStorage.setItem('celengan-app:lastNotificationCheck', now);
+        setLastNotificationCheck(now);
+        setHasUnread(false);
+    }
+    setIsNotificationOpen(prev => !prev);
+  };
+  
+  const handleChatClick = () => {
+    setIsChatOpen(true);
+    markChatAsRead();
   };
 
-  const handleAddYoutubeUrl = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newYoutubeUrl.trim()) {
-        addToast('URL YouTube tidak boleh kosong.', 'error');
-        return;
-    }
-
-    try {
-        new URL(newYoutubeUrl);
-    } catch (_) {
-        addToast('URL YouTube tidak valid.', 'error');
-        return;
-    }
-
-    setIsAddingUrl(true);
-    try {
-        if (stagedPlaylist.some(item => item.url === newYoutubeUrl.trim())) {
-            addToast('URL ini sudah ada di dalam daftar.', 'info');
-            setNewYoutubeUrl('');
-            return;
-        }
-
-        const response = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(newYoutubeUrl.trim())}`);
-        if (!response.ok) {
-            throw new Error('Gagal mengambil judul video. Pastikan URL valid.');
-        }
-        const data = await response.json();
-        const title = data.title || 'Judul tidak ditemukan';
-
-        const newItem: YouTubePlaylistItem = { url: newYoutubeUrl.trim(), title };
-        
-        setStagedPlaylist(prev => [...prev, newItem]);
-        setNewYoutubeUrl('');
-        addToast(`"${title}" ditambahkan. Buka 'Atur Playlist' untuk menyimpan.`, 'success');
-    } catch (error: any) {
-        addToast(error.message || 'Terjadi kesalahan.', 'error');
-        console.error(error);
-    } finally {
-        setIsAddingUrl(false);
-    }
+  const handleNotificationClick = (orderId: number) => {
+    setActiveView('Order');
+    setIsNotificationOpen(false);
+    // Future enhancement: scroll to the specific order if it's on the current page
   };
 
   const renderContent = () => {
@@ -166,6 +189,8 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     loadMoreOrders={loadMoreOrders}
                     hasMoreOrders={hasMoreOrders}
                     isOrderLoading={isOrderLoading}
+                    filters={filters}
+                    setFilters={setFilters}
                 />;
       case 'Produksi':
         return <ProductionManagement 
@@ -199,6 +224,11 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     banks={banks}
                     finishings={finishings}
                     addBulkPaymentToOrders={addBulkPaymentToOrders}
+                    loadMoreOrders={loadMoreOrders}
+                    hasMoreOrders={hasMoreOrders}
+                    isOrderLoading={isOrderLoading}
+                    filters={filters}
+                    setFilters={setFilters}
                 />;
       case 'Daftar Pelanggan':
         return <CustomerManagement 
@@ -283,6 +313,8 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     updateFinishing={updateFinishing}
                     deleteFinishing={deleteFinishing}
                     updateBahanStock={updateBahanStock}
+                    customers={customers}
+                    suppliers={suppliers}
                 />;
       default:
         return <WelcomeContent user={user} activeView={activeView} />;
@@ -291,19 +323,8 @@ const MainContent: React.FC<MainContentProps> = (props) => {
 
   return (
     <div className="flex-1 p-4 sm:p-6 lg:p-8 flex flex-col bg-gray-100 dark:bg-slate-900 h-screen">
-      {isPlaylistModalOpen && (
-          <YouTubePlaylistModal
-              isOpen={isPlaylistModalOpen}
-              onClose={handleClosePlaylistModal}
-              playlistItems={stagedPlaylist}
-              onSave={async (newPlaylist) => {
-                  await updateYouTubePlaylist(newPlaylist);
-                  setIsPlaylistModalOpen(false); // Close modal on successful save
-              }}
-          />
-      )}
       {/* Header */}
-      <header className="flex flex-col sm:flex-row sm:justify-between sm:items-center pb-6 border-b border-slate-200 dark:border-slate-700 flex-shrink-0 gap-4 relative">
+      <header className="flex flex-col sm:flex-row sm:justify-between sm:items-center pb-6 border-b border-slate-200 dark:border-slate-700 flex-shrink-0 gap-4">
         <div className="flex items-center gap-4">
              <button onClick={onToggleSidebar} className="lg:hidden text-slate-600 dark:text-slate-300">
                 <MenuIcon className="h-6 w-6" />
@@ -311,37 +332,30 @@ const MainContent: React.FC<MainContentProps> = (props) => {
              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100">{activeView}</h1>
         </div>
         <div className="flex items-center justify-end space-x-2 sm:space-x-4 w-full sm:w-auto">
-          <form onSubmit={handleAddYoutubeUrl} className="flex items-center gap-2">
-            <input
-              type="url"
-              value={newYoutubeUrl}
-              onChange={(e) => setNewYoutubeUrl(e.target.value)}
-              placeholder="Tambah link YouTube..."
-              className="w-full sm:w-64 pl-4 pr-4 py-2 bg-slate-100 dark:bg-slate-700/50 border border-transparent focus:border-pink-500 rounded-md text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-pink-500 transition duration-300 text-sm"
-            />
-            <button
-              type="submit"
-              disabled={isAddingUrl}
-              className="p-2 flex-shrink-0 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              title="Tambah ke Playlist"
-            >
-              {isAddingUrl ? (
-                <svg className="animate-spin h-6 w-6 text-slate-500 dark:text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-              ) : (
-                <PlusIcon className="h-6 w-6" />
-              )}
-            </button>
-          </form>
-          <button
-              onClick={() => setIsPlaylistModalOpen(true)}
-              className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-              title="Atur Playlist YouTube"
-          >
-              <YouTubeIcon className="h-6 w-6" />
-          </button>
+          <div className="flex items-center">
+              <button
+                  onClick={handleChatClick}
+                  className="relative p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                  title="Team Chat"
+              >
+                  <SendIcon className="h-6 w-6" />
+                  {unreadChatCount > 0 && (
+                      <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold ring-2 ring-white dark:ring-gray-100">
+                          {unreadChatCount > 9 ? '9+' : unreadChatCount}
+                      </span>
+                  )}
+              </button>
+              <button
+                  onClick={handleBellClick}
+                  className="relative p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                  title="Notifikasi"
+              >
+                  <BellIcon className="h-6 w-6" />
+                  {hasUnread && (
+                      <span className="absolute top-1.5 right-1.5 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-gray-100"></span>
+                  )}
+              </button>
+          </div>
           <div className="text-right flex-shrink-0">
             <p className="text-slate-800 dark:text-slate-200 font-semibold capitalize truncate">{displayName}</p>
             <p className="text-sm text-slate-500 dark:text-slate-400 capitalize">{userRole}</p>
@@ -358,6 +372,42 @@ const MainContent: React.FC<MainContentProps> = (props) => {
       <div className="flex-1 mt-6 lg:mt-8 overflow-y-auto no-scrollbar">
         {renderContent()}
       </div>
+
+       {/* Notification Modal */}
+       {isNotificationOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 flex items-center justify-center"
+          onClick={() => setIsNotificationOpen(false)}
+        >
+          <div onClick={e => e.stopPropagation()}>
+             <NotificationPanel
+                  isOpen={isNotificationOpen}
+                  onClose={() => setIsNotificationOpen(false)}
+                  notifications={notifications}
+                  onNotificationClick={handleNotificationClick}
+                  onViewAll={() => handleNotificationClick(0)}
+              />
+          </div>
+        </div>
+      )}
+
+      {/* Chat Modal */}
+      {isChatOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 flex items-center justify-center"
+          onClick={() => setIsChatOpen(false)}
+        >
+          <div onClick={e => e.stopPropagation()}>
+             <ChatPanel
+                  isOpen={isChatOpen}
+                  onClose={() => setIsChatOpen(false)}
+                  messages={teamChatMessages}
+                  currentUser={user}
+                  onSendMessage={addChatMessage}
+              />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

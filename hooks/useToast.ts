@@ -18,20 +18,14 @@ interface ToastContextType {
 export const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
 export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+    // Toasts are now disabled as per user request to centralize notifications in the bell icon.
     const [toasts, setToasts] = useState<ToastMessage[]>([]);
-    const { settings } = useNotificationSettings();
+    
+    // The addToast function is now a no-op (does nothing).
+    const addToast = (message: string, type: ToastType) => {};
 
-    const addToast = (message: string, type: ToastType) => {
-        if (!settings.enabledTypes.includes(type)) {
-            return;
-        }
-        const id = Date.now() + Math.random();
-        setToasts(prev => [...prev, { id, message, type }]);
-    };
-
-    const removeToast = (id: number) => {
-        setToasts(prev => prev.filter(toast => toast.id !== id));
-    };
+    // The removeToast function is now a no-op.
+    const removeToast = (id: number) => {};
 
     return React.createElement(
         ToastContext.Provider,
