@@ -1049,11 +1049,20 @@ export const useAppData = (user: User | undefined) => {
             message: message.trim(),
         };
     
-        const { error } = await supabase.from('team_chat').insert(payload);
+        const { data: insertedMessages, error } = await supabase.from('team_chat').insert(payload).select();
     
         if (error) {
             addToast(`Gagal mengirim pesan: ${error.message}`, 'error');
             console.error('Chat error:', error);
+        } else if (insertedMessages && insertedMessages.length > 0) {
+            const newMessage = insertedMessages[0] as TeamChatMessage;
+            setTeamChatMessages(prev => {
+                if (prev.some(msg => msg.id === newMessage.id)) {
+                    return prev;
+                }
+                const updatedMessages = [...prev, newMessage];
+                return updatedMessages.slice(-50);
+            });
         }
     };
 
