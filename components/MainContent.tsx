@@ -1,8 +1,8 @@
 
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import CustomerManagement from './customers/CustomerManagement';
-import { EmployeePosition, User as AuthUser, YouTubePlaylistItem } from '../lib/supabaseClient';
+import { EmployeePosition, User as AuthUser } from '../lib/supabaseClient';
 import EmployeeManagement from './employees/EmployeeManagement';
 import SettingsManagement from './settings/SettingsManagement';
 import ExpenseManagement from './expenses/ExpenseManagement';
@@ -23,6 +23,7 @@ import BellIcon from './icons/BellIcon';
 import NotificationPanel from './notifications/NotificationPanel';
 import SendIcon from './icons/SendIcon';
 import ChatPanel from './chat/ChatPanel';
+import { useNotificationSettings } from '../hooks/useNotificationSettings';
 
 type MainContentProps = {
   user: AuthUser;
@@ -43,34 +44,6 @@ const WelcomeContent: React.FC<{ user: AuthUser; activeView: string }> = ({ user
     </div>
 );
 
-// Helper function to safely parse playlist data which might be an array, a JSON string, or a single URL string.
-const parsePlaylistData = (rawData: any): YouTubePlaylistItem[] => {
-  if (Array.isArray(rawData)) {
-    // Ensure all items are valid objects before returning
-    return rawData.filter(item => typeof item === 'object' && item !== null && 'url' in item && 'title' in item);
-  }
-
-  if (typeof rawData === 'string' && rawData.trim()) {
-    try {
-      const parsed = JSON.parse(rawData);
-      if (Array.isArray(parsed)) {
-        // Ensure all items in parsed array are valid
-        return parsed.filter(item => typeof item === 'object' && item !== null && 'url' in item && 'title' in item);
-      }
-    } catch (e) {
-      // Not a valid JSON string, might be a single URL
-      if (rawData.startsWith('http')) {
-        return [{ url: rawData, title: 'Judul tidak ditemukan' }];
-      }
-      // console.error is probably too loud for something that might be intentionally empty/malformed
-      console.warn('Could not parse youtube_url from settings. It was not a valid JSON array or a URL.', rawData);
-    }
-  }
-
-  return [];
-};
-
-
 const MainContent: React.FC<MainContentProps> = (props) => {
   const { 
     user, activeView, setActiveView,
@@ -90,6 +63,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
     finishings, addFinishing, updateFinishing, deleteFinishing,
     addBulkPaymentToOrders,
     updateBahanStock,
+    displaySettings, updateDisplaySettings,
     payrollConfigs, addPayrollConfig, updatePayrollConfig, deletePayrollConfig,
     attendances, addAttendance, updateAttendance, deleteAttendance,
     payrolls, addPayroll, updatePayroll, deletePayroll,
@@ -104,11 +78,57 @@ const MainContent: React.FC<MainContentProps> = (props) => {
   const avatarSeed = displayName;
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const { settings } = useNotificationSettings();
   
   const [lastNotificationCheck, setLastNotificationCheck] = useState(() => {
     return localStorage.getItem('celengan-app:lastNotificationCheck') || new Date(0).toISOString();
   });
   const [hasUnread, setHasUnread] = useState(false);
+  
+  const prevUnreadChatCountRef = useRef(unreadChatCount);
+  const prevLatestOrderIdRef = useRef(orders.length > 0 ? orders[0].id : 0);
+
+  const playSound = (frequency = 523.25, duration = 150) => {
+      if (typeof window === 'undefined') return;
+      try {
+          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+          if (!audioContext) return;
+          const oscillator = audioContext.createOscillator();
+          const gainNode = audioContext.createGain();
+          
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+          
+          gainNode.gain.value = 0.1;
+          oscillator.frequency.value = frequency;
+          oscillator.type = 'sine';
+          
+          oscillator.start(audioContext.currentTime);
+          oscillator.stop(audioContext.currentTime + duration / 1000);
+      } catch (e) {
+          console.error("Could not play sound:", e);
+      }
+  };
+
+  useEffect(() => {
+    if (orders.length > 0 && orders[0].id > prevLatestOrderIdRef.current) {
+      if (settings.order.sound) {
+        playSound(659.25, 200); // E5 note for new orders
+      }
+    }
+    if (orders.length > 0) {
+        prevLatestOrderIdRef.current = orders[0].id;
+    }
+  }, [orders, settings.order.sound]);
+
+  useEffect(() => {
+    if (unreadChatCount > prevUnreadChatCountRef.current) {
+        if (settings.chat.sound) {
+            playSound(523.25, 150); // C5 note for new chat messages
+        }
+    }
+    prevUnreadChatCountRef.current = unreadChatCount;
+  }, [unreadChatCount, settings.chat.sound]);
 
   useEffect(() => {
     const latestOrderDate = orders[0]?.created_at;
@@ -315,6 +335,8 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                     updateBahanStock={updateBahanStock}
                     customers={customers}
                     suppliers={suppliers}
+                    displaySettings={displaySettings}
+                    updateDisplaySettings={updateDisplaySettings}
                 />;
       default:
         return <WelcomeContent user={user} activeView={activeView} />;
@@ -339,7 +361,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                   title="Team Chat"
               >
                   <SendIcon className="h-6 w-6" />
-                  {unreadChatCount > 0 && (
+                  {settings.chat.enabled && unreadChatCount > 0 && (
                       <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold ring-2 ring-white dark:ring-gray-100">
                           {unreadChatCount > 9 ? '9+' : unreadChatCount}
                       </span>
@@ -351,7 +373,7 @@ const MainContent: React.FC<MainContentProps> = (props) => {
                   title="Notifikasi"
               >
                   <BellIcon className="h-6 w-6" />
-                  {hasUnread && (
+                  {settings.order.enabled && hasUnread && (
                       <span className="absolute top-1.5 right-1.5 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-gray-100"></span>
                   )}
               </button>

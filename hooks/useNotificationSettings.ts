@@ -1,10 +1,15 @@
 import React, { createContext, useContext, ReactNode } from 'react';
 import useLocalStorage from './useLocalStorage';
-import { ToastType } from './useToast';
 
 export interface NotificationSettings {
-    enabledTypes: ToastType[];
-    duration: number; // in seconds
+    order: {
+        enabled: boolean;
+        sound: boolean;
+    };
+    chat: {
+        enabled: boolean;
+        sound: boolean;
+    };
 }
 
 interface NotificationSettingsContextType {
@@ -13,8 +18,14 @@ interface NotificationSettingsContextType {
 }
 
 const defaultSettings: NotificationSettings = {
-    enabledTypes: ['success', 'error', 'info'],
-    duration: 5,
+    order: {
+        enabled: true,
+        sound: false,
+    },
+    chat: {
+        enabled: true,
+        sound: true,
+    },
 };
 
 const NotificationSettingsContext = createContext<NotificationSettingsContextType | undefined>(undefined);

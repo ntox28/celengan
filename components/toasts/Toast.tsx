@@ -4,7 +4,6 @@ import { ToastMessage } from '../../hooks/useToast';
 import CheckCircleIcon from '../icons/CheckCircleIcon';
 import ExclamationCircleIcon from '../icons/ExclamationCircleIcon';
 import XCircleIcon from '../icons/XCircleIcon';
-import { useNotificationSettings } from '../../hooks/useNotificationSettings';
 
 interface ToastProps {
     toast: ToastMessage;
@@ -25,15 +24,14 @@ const toastConfig = {
 
 const Toast: React.FC<ToastProps> = ({ toast, onRemove }) => {
     const [isExiting, setIsExiting] = useState(false);
-    const { settings } = useNotificationSettings();
 
     useEffect(() => {
         const timer = setTimeout(() => {
             handleRemove();
-        }, settings.duration * 1000); // Auto-dismiss after configured duration
+        }, 5000); // Auto-dismiss after 5 seconds
 
         return () => clearTimeout(timer);
-    }, [settings.duration]);
+    }, []);
 
     const handleRemove = () => {
         setIsExiting(true);

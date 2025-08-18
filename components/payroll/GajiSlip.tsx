@@ -17,36 +17,39 @@ const GajiSlip = forwardRef<HTMLDivElement, GajiSlipProps>(({ payroll, employee,
     const approverName = approver ? approver.name : 'Manager';
 
     return (
-        <div ref={ref} className="bg-white text-black p-8 font-mono text-xs" style={{ width: '210mm', boxSizing: 'border-box' }}>
-            {/* Header */}
-            <header className="flex justify-between items-start pb-2 mb-2">
-                <div>
-                    <h1 className="text-xl font-bold">NALA MEDIA</h1>
-                    <p className="text-[9px] leading-tight">Jl. Prof. Moh. Yamin, Cerbonan, Karanganyar</p>
-                </div>
-                <h2 className="text-xl font-semibold mt-1">SLIP GAJI</h2>
-            </header>
-            <div className="border-t border-dashed border-black"></div>
-            
-            {/* Employee & Period Info */}
-            <section className="flex justify-between my-4 text-[10px]">
-                <div className="w-1/2 space-y-1">
-                    <div className="flex"><span className="w-24 inline-block">NAMA</span>: {employee?.name || 'N/A'}</div>
-                    <div className="flex"><span className="w-24 inline-block">DEVISI</span>: {employee?.position || 'N/A'}</div>
-                </div>
-                <div className="w-1/2 text-right space-y-1">
-                     <div className="flex justify-end"><span className="w-28 text-left inline-block">PERIODE GAJI</span>: {formatDate(payroll.period_start)} - {formatDate(payroll.period_end)}</div>
-                     <div className="flex justify-end"><span className="w-28 text-left inline-block">TANGGAL CETAK</span>: {formatDate(new Date().toISOString())}</div>
-                </div>
-            </section>
-            
-            <div className="border-t border-dashed border-black mb-2"></div>
+        <div ref={ref} className="nota-dot-matrix bg-white text-black p-4 font-sans text-xs">
 
-            {/* Salary Details */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", paddingBottom: '8px', borderBottom: '1px dashed black' }}>
+         <div style={{ width: "60%" }}>
+            <h1 style={{ fontSize: "18pt", fontWeight: "bold", margin: 0, padding: 0, lineHeight: 1 }}>
+                <span>NALA</span>
+                <span>MEDIA</span>
+                <span style={{ fontSize: "10pt", fontWeight: "normal"}}> Digital Printing</span>
+            </h1>
+            <p style={{ fontSize: "8pt", marginTop: "4px", lineHeight: 1.2, margin: 0 }}>
+                Jl. Prof. Moh. Yamin, Cerbonan, Karanganyar<br/>
+                Email: nalamedia.kra@gmail.com | Telp/WA: 0813-9872-7722
+            </p>
+        </div>
+        <div className="w-1/2 text-right">
+          <h2 className="text-3xl font-bold text-gray-800 uppercase">SLIP GAJI</h2>
+          <p className="text-sm text-gray-500 mt-1"></p>
+        </div>
+      </div>
+            {/* Employee & Period Info */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginTop: "4px",paddingBottom: '4px' }}>
+        <div>Nama: <b>{employee?.name || 'N/A'}</b></div>
+        <div>Periode: <b>{formatDate(payroll.period_start)} - {formatDate(payroll.period_end)}</b></div>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginTop: "4px",paddingBottom: '8px', borderBottom: '1px dashed black' }}>
+        <div>Devisi: <b>{employee?.position || 'N/A'}</b></div>
+        <div>Tanggal Cetak: {formatDate(new Date().toISOString())}</div>
+      </div>      
+
             <section className="space-y-4">
                 {/* PENDAPATAN */}
                 <div>
-                    <div className="font-bold mb-1">PENDAPATAN</div>
+                    <div className="font-bold mt-2 mb-1">PENDAPATAN</div>
                     <div className="flex justify-between py-0.5">
                         <span>Gaji Pokok (Total Jam Kerja: {payroll.total_regular_hours.toFixed(2)} jam)</span>
                         <span>{formatCurrency(payroll.base_salary)}</span>
@@ -68,16 +71,16 @@ const GajiSlip = forwardRef<HTMLDivElement, GajiSlipProps>(({ payroll, employee,
                             )}
                         </>
                     )}
-                    <div className="border-t border-dashed border-black my-1"></div>
-                    <div className="flex justify-between font-bold">
-                        <span>TOTAL PENDAPATAN (A)</span>
-                        <span>{formatCurrency(totalPendapatan)}</span>
-                    </div>
-                </div>
+                    
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginTop: "4px",paddingBottom: '8px', borderBottom: '1px dashed black' }}>
+        <div><b>TOTAL PENDAPATAN (A)</b></div>
+        <div><b>{formatCurrency(totalPendapatan)}</b></div>        
+      </div>                    
+                </div>                
 
                 {/* POTONGAN */}
                 <div>
-                    <div className="font-bold mb-1">POTONGAN</div>
+                    <div className="font-bold mt-1 mb-1">POTONGAN</div>
                     <div className="flex justify-between py-0.5">
                         <span>Potongan Gaji</span>
                         <span>{formatCurrency(payroll.potongan)}</span>
@@ -85,42 +88,37 @@ const GajiSlip = forwardRef<HTMLDivElement, GajiSlipProps>(({ payroll, employee,
                      {payroll.catatan_potongan && (
                         <div className="text-slate-600 text-[9px] italic pl-4 py-0.5">
                             Catatan: {payroll.catatan_potongan}
-                        </div>
-                    )}
-                    <div className="border-t border-dashed border-black my-1"></div>
-                    <div className="flex justify-between font-bold">
-                        <span>TOTAL POTONGAN (B)</span>
-                        <span>{formatCurrency(payroll.potongan)}</span>
-                    </div>
+                        </div>  )}
+                    
+                    
                 </div>
-            </section>
-            
-            <div className="border-t-2 border-dashed border-black my-2"></div>
 
-            {/* Final Salary */}
-            <section className="mt-2">
-                 <div className="flex justify-end">
-                     <div className="w-1/2 flex justify-between font-bold text-base">
-                         <span>GAJI BERSIH (A - B)</span>
-                         <span>{formatCurrency(payroll.total_salary)}</span>
-                     </div>
-                 </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginTop: "4px",paddingBottom: '8px', borderBottom: '1px dashed black' }}>
+        <div><b>TOTAL POTONGAN (B)</b></div>
+        <div><b>{formatCurrency(payroll.potongan)}</b></div>        
+      </div>
             </section>
+{/* Final Salary */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginTop: "8px",paddingBottom: '8px' }}>
+        <div><b>TOTAL GAJI (A - B)</b></div>
+        <div><b>{formatCurrency(payroll.total_salary)}</b></div>        
+      </div>            
 
             {/* Signature */}
-            <footer className="mt-12 flex justify-between text-center text-[10px]">
+            <footer className="mt-1 flex justify-between text-center">
                 <div className="w-1/3">
-                    <p>Disetujui Oleh,</p>
-                    <div className="h-16"></div>
-                    <p className="border-t border-black pt-1">( {approverName} )</p>
+                    <div>Disetujui Oleh,</div>
+
+                    <div className="border-t border-black pt-1">( {approverName} )</div>
                 </div>
                  <div className="w-1/3">
-                    <p>Diterima Oleh,</p>
-                    <div className="h-16"></div>
-                    <p className="border-t border-black pt-1">( {employee?.name} )</p>
+                    <div>Diterima Oleh,</div>
+
+                    <div className="border-t border-black pt-1">( {employee?.name} )</div>
                 </div>
             </footer>
         </div>
+        
     );
 });
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import ClockIcon from '../icons/ClockIcon';
 import ClipboardDocumentListIcon from '../icons/ClipboardDocumentListIcon';
 import DocumentCheckIcon from '../icons/DocumentCheckIcon';
@@ -107,6 +107,7 @@ const PayrollManagement: React.FC<PayrollManagementProps> = (props) => {
     const [potonganData, setPotonganData] = useState({ amount: 0, notes: '' });
     const [viewingPayroll, setViewingPayroll] = useState<Payroll | null>(null);
     const [printablePayroll, setPrintablePayroll] = useState<Payroll | null>(null);
+    const slipRef = useRef<HTMLDivElement>(null);
     const [isEditPotonganModalOpen, setIsEditPotonganModalOpen] = useState(false);
     const [editablePotongan, setEditablePotongan] = useState({ id: 0, amount: 0, notes: '' });
     
@@ -333,14 +334,48 @@ const PayrollManagement: React.FC<PayrollManagementProps> = (props) => {
     };
 
     useEffect(() => {
-        if (printablePayroll) {
-            const timer = setTimeout(() => {
-                window.print();
-                setPrintablePayroll(null);
-            }, 100);
-            return () => clearTimeout(timer);
+        if (printablePayroll && slipRef.current) {
+            const printContents = slipRef.current.innerHTML;
+            const printWindow = window.open('', '', 'height=800,width=1200');
+
+            if (printWindow) {
+                printWindow.document.write('<html><head><title>Cetak Slip Gaji</title>');
+                printWindow.document.write(`<style>
+                    @page { margin: 10mm; } 
+                    body { font-family: sans-serif; font-size: 10pt; color: #000; } 
+                    .gaji-slip-container { width: 100%; box-sizing: border-box; background-color: white; color: black; padding: 1rem; font-family: sans-serif; font-size: 12px; }
+                    .flex { display: flex; } .justify-between { justify-content: space-between; } .items-start { align-items: flex-start; }
+                    .pb-2 { padding-bottom: 0.5rem; } .mb-2 { margin-bottom: 0.5rem; } .border-t { border-top-width: 1px; }
+                    .border-dashed { border-style: dashed; } .border-black { border-color: #000; }
+                    .text-2xl { font-size: 1.5rem; } .font-bold { font-weight: 700; } .text-\\[9px\\] { font-size: 9px; }
+                    .leading-tight { line-height: 1.25; } .font-semibold { font-weight: 600; } .mt-1 { margin-top: 0.25rem; }
+                    .my-4 { margin-top: 1rem; margin-bottom: 1rem; } .w-1\\/2 { width: 50%; }
+                    .space-y-1 > *:not([hidden]) ~ *:not([hidden]) { margin-top: 0.25rem; } .w-24 { width: 6rem; }
+                    .w-28 { width: 7rem; } .inline-block { display: inline-block; } .text-right { text-align: right; }
+                    .mb-1 { margin-bottom: 0.25rem; } .py-0\\.5 { padding-top: 0.125rem; padding-bottom: 0.125rem; }
+                    .border-b { border-bottom-width: 1px; } .my-1 { margin-top: 0.25rem; margin-bottom: 0.25rem; }
+                    .italic { font-style: italic; } .pl-4 { padding-left: 1rem; } .border-t-2 { border-top-width: 2px; }
+                    .my-2 { margin-top: 0.5rem; margin-bottom: 0.5rem; } .mt-2 { margin-top: 0.5rem; }
+                    .text-sm { font-size: 0.875rem; } .mt-12 { margin-top: 3rem; } .text-center { text-align: center; }
+                    .w-1\\/3 { width: 33.333333%; } .h-16 { height: 4rem; } .pt-1 { padding-top: 0.25rem; }
+                </style>`);
+                printWindow.document.write('</head><body>');
+                printWindow.document.write(printContents);
+                printWindow.document.write('</body></html>');
+                printWindow.document.close();
+                printWindow.focus();
+                
+                setTimeout(() => {
+                    printWindow.print();
+                    printWindow.close();
+                    setPrintablePayroll(null);
+                }, 500);
+            } else {
+                 addToast('Gagal membuka jendela cetak. Pastikan pop-up diizinkan.', 'error');
+                 setPrintablePayroll(null);
+            }
         }
-    }, [printablePayroll]);
+    }, [printablePayroll, addToast]);
 
     const tabs = [
         { key: 'attendance', label: 'Absen Kerja', icon: ClockIcon },
@@ -659,8 +694,8 @@ const PayrollManagement: React.FC<PayrollManagementProps> = (props) => {
                 </div>
             )}
             
-            <div className="printable-area">
-                {printablePayroll && <GajiSlip payroll={printablePayroll} employees={employees} employee={employees.find(e => e.id === printablePayroll.employee_id)} />}
+            <div className="hidden">
+                {printablePayroll && <GajiSlip ref={slipRef} payroll={printablePayroll} employees={employees} employee={employees.find(e => e.id === printablePayroll.employee_id)} />}
             </div>
             <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 h-full flex flex-col no-print">
                 <div className="border-b border-slate-200 dark:border-slate-700 flex-shrink-0">

@@ -1,6 +1,7 @@
 
+
 import React, { useState } from 'react';
-import { Bank, Asset, Debt, Bahan, Finishing, Customer, Supplier } from '../../lib/supabaseClient';
+import { Bank, Asset, Debt, Bahan, Finishing, Customer, Supplier, DisplaySettings as DisplaySettingsType } from '../../lib/supabaseClient';
 import BankManagement from './BankManagement';
 import BankIcon from '../icons/BankIcon';
 import AssetIcon from '../icons/AssetIcon';
@@ -17,6 +18,8 @@ import BellIcon from '../icons/BellIcon';
 import NotificationSettings from './NotificationSettings';
 import DatabaseIcon from '../icons/DatabaseIcon';
 import DataManagement from './DataManagement';
+import DisplaySettings from './DisplaySettings';
+import ImageIcon from '../icons/ImageIcon';
 
 interface SettingsProps {
     banks: Bank[];
@@ -42,6 +45,8 @@ interface SettingsProps {
     updateBahanStock: (bahanId: number, newStockQty: number, notes: string) => Promise<void>;
     customers: Customer[];
     suppliers: Supplier[];
+    displaySettings: DisplaySettingsType | null;
+    updateDisplaySettings: (settings: Partial<Omit<DisplaySettingsType, 'id'|'created_at'>>) => Promise<void>;
 }
 
 const settingsTabs = [
@@ -51,6 +56,7 @@ const settingsTabs = [
     { name: 'Stock Opname', icon: ClipboardListIcon, component: StockOpnameManagement, props: ['bahanList', 'updateBahanStock'] },
     { name: 'Bank', icon: BankIcon, component: BankManagement, props: ['banks', 'addBank', 'updateBank', 'deleteBank'] },
     { name: 'Finishing', icon: FinishingIcon, component: FinishingManagement, props: ['finishings', 'addFinishing', 'updateFinishing', 'deleteFinishing'] },
+    { name: 'Display Setting', icon: ImageIcon, component: DisplaySettings, props: ['displaySettings', 'updateDisplaySettings'] },
     { name: 'Notifikasi', icon: BellIcon, component: NotificationSettings, props: [] },
     { name: 'Impor & Ekspor Data', icon: DatabaseIcon, component: DataManagement, props: ['customers', 'bahanList', 'suppliers', 'finishings'] },
 ];

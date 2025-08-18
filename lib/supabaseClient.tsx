@@ -29,10 +29,22 @@ export type PrinterType = 'Thermal 58mm' | 'Thermal 80mm' | 'Dot Matrix';
 export type PrintTarget = 'SPK' | 'Nota' | 'Struk';
 export type PayrollStatus = 'pending_approval' | 'approved' | 'rejected' | 'paid';
 
-
 export type YouTubePlaylistItem = {
     url: string;
     title: string;
+};
+
+export type SlideshowImage = {
+    url: string;
+    caption: string;
+};
+
+export type DisplaySettings = {
+    id: number;
+    created_at: string;
+    running_text: string | null;
+    slideshow_images: SlideshowImage[] | null;
+    youtube_video_url: string | null;
 };
 
 export type Customer = {
@@ -64,7 +76,7 @@ export type Bahan = {
     harga_grosir: number;
     harga_reseller: number;
     harga_corporate: number;
-    stock_qty?: number;
+    stock_qty: number | null;
 };
 
 export type Expense = {
@@ -129,7 +141,7 @@ export type Bank = {
     category: 'Bank' | 'Digital Wallet' | 'Qris';
 };
 
-export type Asset = {
+export type AssetRow = {
     id: number;
     created_at: string;
     name: string;
@@ -137,6 +149,9 @@ export type Asset = {
     purchase_price: number;
     purchase_date: string;
     status: AssetStatus;
+};
+
+export type Asset = AssetRow & {
     is_dynamic?: boolean;
 };
 
@@ -193,12 +208,6 @@ export type Printer = {
     is_default: boolean;
 };
 
-export type DisplaySettings = {
-    id: number;
-    created_at: string;
-    youtube_url: YouTubePlaylistItem[] | null;
-};
-
 export type PayrollConfig = {
     id: number;
     created_at: string;
@@ -251,31 +260,31 @@ export type TeamChatMessage = {
 };
 
 
-export type Database = {
+export interface Database {
   public: {
     Tables: {
       customers: {
         Row: Customer;
-        Insert: Omit<Customer, 'id' | 'created_at'>;
-        Update: Partial<Customer>;
+        Insert: Omit<Customer, "id" | "created_at">;
+        Update: Partial<Omit<Customer, "id" | "created_at">>;
         Relationships: [];
       };
       employees: {
         Row: Employee;
-        Insert: Omit<Employee, 'id' | 'created_at'>;
-        Update: Partial<Employee>;
+        Insert: Omit<Employee, "id" | "created_at">;
+        Update: Partial<Omit<Employee, "id" | "created_at">>;
         Relationships: [];
       };
       bahan: {
         Row: Bahan;
-        Insert: Omit<Bahan, 'id' | 'created_at'>;
-        Update: Partial<Bahan>;
+        Insert: Omit<Bahan, "id" | "created_at">;
+        Update: Partial<Omit<Bahan, "id" | "created_at">>;
         Relationships: [];
       };
       expenses: {
         Row: Expense;
-        Insert: Omit<Expense, 'id' | 'created_at'>;
-        Update: Partial<Expense>;
+        Insert: Omit<Expense, "id" | "created_at">;
+        Update: Partial<Omit<Expense, "id" | "created_at">>;
         Relationships: [
           {
             foreignKeyName: "expenses_bahan_id_fkey",
@@ -293,8 +302,8 @@ export type Database = {
       };
       orders: {
         Row: OrderRow;
-        Insert: Omit<OrderRow, 'id' | 'created_at'>;
-        Update: Partial<OrderRow>;
+        Insert: Omit<OrderRow, "id" | "created_at">;
+        Update: Partial<Omit<OrderRow, "id" | "created_at">>;
         Relationships: [
           {
             foreignKeyName: "orders_pelanggan_id_fkey",
@@ -306,8 +315,8 @@ export type Database = {
       };
       order_items: {
         Row: OrderItem;
-        Insert: Omit<OrderItem, 'id' | 'created_at'>;
-        Update: Partial<OrderItem>;
+        Insert: Omit<OrderItem, "id" | "created_at">;
+        Update: Partial<Omit<OrderItem, "id" | "created_at">>;
         Relationships: [
           {
             foreignKeyName: "order_items_bahan_id_fkey",
@@ -331,8 +340,8 @@ export type Database = {
       };
       payments: {
         Row: Payment;
-        Insert: Omit<Payment, 'id' | 'created_at'>;
-        Update: Partial<Payment>;
+        Insert: Omit<Payment, "id" | "created_at">;
+        Update: Partial<Omit<Payment, "id" | "created_at">>;
         Relationships: [
           {
             foreignKeyName: "payments_bank_id_fkey",
@@ -350,32 +359,32 @@ export type Database = {
       };
       banks: {
         Row: Bank;
-        Insert: Omit<Bank, 'id' | 'created_at'>;
-        Update: Partial<Bank>;
+        Insert: Omit<Bank, "id" | "created_at">;
+        Update: Partial<Omit<Bank, "id" | "created_at">>;
         Relationships: [];
       };
       assets: {
-        Row: Asset;
-        Insert: Omit<Asset, 'id' | 'created_at'>;
-        Update: Partial<Asset>;
+        Row: AssetRow;
+        Insert: Omit<AssetRow, "id" | "created_at">;
+        Update: Partial<Omit<AssetRow, "id" | "created_at">>;
         Relationships: [];
       };
       debts: {
         Row: Debt;
-        Insert: Omit<Debt, 'id' | 'created_at'>;
-        Update: Partial<Debt>;
+        Insert: Omit<Debt, "id" | "created_at">;
+        Update: Partial<Omit<Debt, "id" | "created_at">>;
         Relationships: [];
       };
       suppliers: {
         Row: Supplier;
-        Insert: Omit<Supplier, 'id' | 'created_at'>;
-        Update: Partial<Supplier>;
+        Insert: Omit<Supplier, "id" | "created_at">;
+        Update: Partial<Omit<Supplier, "id" | "created_at">>;
         Relationships: [];
       };
       stock_movements: {
         Row: StockMovement;
-        Insert: Omit<StockMovement, 'id' | 'created_at'>;
-        Update: Partial<StockMovement>;
+        Insert: Omit<StockMovement, "id" | "created_at">;
+        Update: Partial<Omit<StockMovement, "id" | "created_at">>;
         Relationships: [
           {
             foreignKeyName: "stock_movements_bahan_id_fkey",
@@ -393,20 +402,20 @@ export type Database = {
       };
       finishings: {
         Row: Finishing;
-        Insert: Omit<Finishing, 'id' | 'created_at'>;
-        Update: Partial<Finishing>;
+        Insert: Omit<Finishing, "id" | "created_at">;
+        Update: Partial<Omit<Finishing, "id" | "created_at">>;
         Relationships: [];
       };
       printers: {
         Row: Printer;
-        Insert: Omit<Printer, 'id' | 'created_at'>;
-        Update: Partial<Printer>;
+        Insert: Omit<Printer, "id" | "created_at">;
+        Update: Partial<Omit<Printer, "id" | "created_at">>;
         Relationships: [];
       };
       display_settings: {
         Row: DisplaySettings;
-        Insert: Omit<DisplaySettings, 'id' | 'created_at'>;
-        Update: Partial<DisplaySettings>;
+        Insert: Omit<DisplaySettings, "id" | "created_at">;
+        Update: Partial<Omit<DisplaySettings, "id" | "created_at">>;
         Relationships: [];
       };
       settings: {
@@ -417,8 +426,8 @@ export type Database = {
       };
       payroll_configs: {
         Row: PayrollConfig;
-        Insert: Omit<PayrollConfig, 'id' | 'created_at'>;
-        Update: Partial<PayrollConfig>;
+        Insert: Omit<PayrollConfig, "id" | "created_at">;
+        Update: Partial<Omit<PayrollConfig, "id" | "created_at">>;
         Relationships: [
           {
             foreignKeyName: "payroll_configs_employee_id_fkey",
@@ -430,8 +439,8 @@ export type Database = {
       };
       attendances: {
         Row: Attendance;
-        Insert: Omit<Attendance, 'id' | 'created_at'>;
-        Update: Partial<Attendance>;
+        Insert: Omit<Attendance, "id" | "created_at">;
+        Update: Partial<Omit<Attendance, "id" | "created_at">>;
         Relationships: [
           {
             foreignKeyName: "attendances_employee_id_fkey",
@@ -449,8 +458,8 @@ export type Database = {
       };
       payrolls: {
         Row: Payroll;
-        Insert: Omit<Payroll, 'id' | 'created_at'>;
-        Update: Partial<Payroll>;
+        Insert: Omit<Payroll, "id" | "created_at">;
+        Update: Partial<Omit<Payroll, "id" | "created_at">>;
         Relationships: [
           {
             foreignKeyName: "payrolls_employee_id_fkey",
@@ -462,16 +471,9 @@ export type Database = {
       };
       team_chat: {
         Row: TeamChatMessage;
-        Insert: Omit<TeamChatMessage, 'id' | 'created_at'>;
-        Update: Partial<TeamChatMessage>;
-        Relationships: [
-          {
-            foreignKeyName: "team_chat_user_id_fkey",
-            columns: ["user_id"],
-            referencedRelation: "users",
-            referencedColumns: ["id"],
-          }
-        ];
+        Insert: Omit<TeamChatMessage, "id" | "created_at">;
+        Update: Partial<Omit<TeamChatMessage, "id" | "created_at">>;
+        Relationships: [];
       };
     };
     Views: {
@@ -480,7 +482,7 @@ export type Database = {
     Functions: {
       import_backup_data: {
         Args: {
-          backup_data: any
+          backup_data: Json
         }
         Returns: undefined
       }

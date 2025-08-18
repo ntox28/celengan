@@ -1,7 +1,7 @@
 
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { supabase, Customer, Employee, Bahan, Expense, Order, OrderItem, Payment, User, Bank, Asset, Debt, NotaSetting, Supplier, StockMovement, Finishing, OrderStatus, ProductionStatus, OrderRow, Database, CustomerLevel, PaymentStatus, DisplaySettings, YouTubePlaylistItem, PayrollConfig, Attendance, Payroll, PayrollStatus, TeamChatMessage } from '../lib/supabaseClient';
+import { supabase, Customer, Employee, Bahan, Expense, Order, OrderItem, Payment, User, Bank, Asset, Debt, NotaSetting, Supplier, StockMovement, Finishing, OrderStatus, ProductionStatus, OrderRow, Database, CustomerLevel, PaymentStatus, DisplaySettings, PayrollConfig, Attendance, Payroll, PayrollStatus, TeamChatMessage } from '../lib/supabaseClient';
 import { useToast } from './useToast';
 
 // Type definitions for complex parameters
@@ -180,7 +180,7 @@ export const useAppData = (user: User | undefined) => {
                 supabase.from('stock_movements').select('id, created_at, bahan_id, type, quantity, supplier_id, notes'),
                 supabase.from('finishings').select('id, name, panjang_tambahan, lebar_tambahan').order('name'),
                 supabase.from('settings').select('key, value').in('key', ['nota_prefix', 'nota_last_number']),
-                supabase.from('display_settings').select('id, created_at, youtube_url').eq('id', 1).maybeSingle(),
+                supabase.from('display_settings').select('id, created_at, running_text, slideshow_images, youtube_video_url').eq('id', 1).maybeSingle(),
                 supabase.from('payroll_configs').select('id, employee_id, regular_rate_per_hour, overtime_rate_per_hour'),
                 supabase.from('attendances').select('id, employee_id, check_in, check_out, overtime_minutes, notes, shift, catatan_lembur, potongan, catatan_potongan, payroll_id').order('check_in', { ascending: false }),
                 supabase.from('payrolls').select('id, created_at, employee_id, period_start, period_end, total_regular_hours, total_overtime_hours, base_salary, overtime_pay, bonus, potongan, notes, catatan_potongan, total_salary, status, approved_by, approved_at').order('created_at', { ascending: false }),
@@ -294,6 +294,7 @@ export const useAppData = (user: User | undefined) => {
             .on('postgres_changes', { event: '*', schema: 'public', table: 'payroll_configs' }, () => supabase.from('payroll_configs').select('id, employee_id, regular_rate_per_hour, overtime_rate_per_hour').then(({data}) => setPayrollConfigs(data as unknown as PayrollConfig[] || [])))
             .on('postgres_changes', { event: '*', schema: 'public', table: 'attendances' }, () => supabase.from('attendances').select('id, employee_id, check_in, check_out, overtime_minutes, notes, shift, catatan_lembur, potongan, catatan_potongan, payroll_id').order('check_in', { ascending: false }).then(({data}) => setAttendances(data as unknown as Attendance[] || [])))
             .on('postgres_changes', { event: '*', schema: 'public', table: 'payrolls' }, () => supabase.from('payrolls').select('id, created_at, employee_id, period_start, period_end, total_regular_hours, total_overtime_hours, base_salary, overtime_pay, bonus, potongan, notes, catatan_potongan, total_salary, status, approved_by, approved_at').order('created_at', { ascending: false }).then(({data}) => setPayrolls(data as unknown as Payroll[] || [])))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'display_settings' }, () => supabase.from('display_settings').select('id, created_at, running_text, slideshow_images, youtube_video_url').eq('id', 1).maybeSingle().then(({data}) => setDisplaySettings(data as unknown as DisplaySettings | null)))
             .subscribe();
 
         return () => {
@@ -918,14 +919,15 @@ export const useAppData = (user: User | undefined) => {
         }
     };
     
-    const updateYouTubePlaylist = async (playlist: YouTubePlaylistItem[]) => {
-      const { data: existing } = await supabase.from('display_settings').select('id').eq('id', 1).maybeSingle();
-      const payload = { id: 1, youtube_url: playlist };
-      const operation = existing 
-          ? supabase.from('display_settings').update(payload).eq('id', 1)
-          : supabase.from('display_settings').insert(payload);
-      await performDbOperation(operation, 'Playlist YouTube berhasil diperbarui.');
-      setDisplaySettings(prev => ({...prev, id: 1, created_at: prev?.created_at || new Date().toISOString(), youtube_url: playlist}));
+    const updateDisplaySettings = async (settings: Partial<Omit<DisplaySettings, 'id'|'created_at'>>) => {
+        const { data: existing } = await supabase.from('display_settings').select('id').eq('id', 1).maybeSingle();
+        const payload = { id: 1, ...settings };
+        
+        const operation = existing
+            ? supabase.from('display_settings').update(payload).eq('id', 1)
+            : supabase.from('display_settings').insert(payload);
+        
+        await performDbOperation(operation, 'Pengaturan display berhasil disimpan.');
     };
     
     // Payroll & Attendance CRUD
@@ -1096,7 +1098,7 @@ export const useAppData = (user: User | undefined) => {
         finishings, addFinishing, updateFinishing, deleteFinishing,
         updateBahanStock,
         displaySettings,
-        updateYouTubePlaylist,
+        updateDisplaySettings,
         payrollConfigs, addPayrollConfig, updatePayrollConfig, deletePayrollConfig,
         attendances, addAttendance, updateAttendance, deleteAttendance,
         payrolls, addPayroll, updatePayroll, deletePayroll,
