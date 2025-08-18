@@ -47,6 +47,7 @@ const formatCurrency = (value: number) => {
 };
 
 const ORDERS_PAGE_SIZE = 25;
+const IDLE_TIMEOUT = 15000; // 15 seconds for auto-refresh
 
 const ORDER_SELECT_QUERY = `
     id, created_at, no_nota, tanggal, pelanggan_id, status_pembayaran, status_pesanan, 
@@ -140,7 +141,12 @@ export const useAppData = (user: User | undefined) => {
             const newOrders = data as unknown as Order[];
             
             if (append) {
-                setOrders(prev => [...prev, ...newOrders]);
+                // Prevent duplicates when appending
+                setOrders(prev => {
+                    const existingIds = new Set(prev.map(o => o.id));
+                    const uniqueNewOrders = newOrders.filter(o => !existingIds.has(o.id));
+                    return [...prev, ...uniqueNewOrders];
+                });
             } else {
                 setOrders(newOrders);
             }
@@ -157,6 +163,40 @@ export const useAppData = (user: User | undefined) => {
         if (!initialLoadDone.current || !user) return;
         loadOrders(filters, 0, false);
     }, [filters, user, loadOrders]);
+    
+    // --- START: Auto-refresh on idle ---
+    const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const handleIdle = useCallback(() => {
+        if (!isOrderLoading) {
+            addToast('Memuat data terbaru...', 'info');
+            loadOrders(filters, 0, false);
+        }
+    }, [loadOrders, filters, addToast, isOrderLoading]);
+
+    const resetIdleTimer = useCallback(() => {
+        if (idleTimerRef.current) {
+            clearTimeout(idleTimerRef.current);
+        }
+        idleTimerRef.current = setTimeout(handleIdle, IDLE_TIMEOUT);
+    }, [handleIdle]);
+
+    useEffect(() => {
+        if (!user) return;
+
+        const events: (keyof WindowEventMap)[] = ['mousemove', 'keydown', 'click', 'scroll'];
+        
+        events.forEach(event => window.addEventListener(event, resetIdleTimer));
+        resetIdleTimer(); // Initial start
+
+        return () => {
+            events.forEach(event => window.removeEventListener(event, resetIdleTimer));
+            if (idleTimerRef.current) {
+                clearTimeout(idleTimerRef.current);
+            }
+        };
+    }, [resetIdleTimer, user]);
+    // --- END: Auto-refresh on idle ---
 
     const fetchInitialData = useCallback(async () => {
         setIsDataLoaded(false);
@@ -254,25 +294,15 @@ export const useAppData = (user: User | undefined) => {
     }, [user, isDataLoaded, fetchInitialData]);
     
     useEffect(() => {
-        if (!user) return;
+        if (!user || !initialLoadDone.current) return;
 
-        const handleOrderRelatedChange = async (payload: any) => {
-            const orderId = payload.new.order_id || payload.new.id || payload.old.order_id || payload.old.id;
-            if (orderId) {
-                const fullOrder = await fetchFullOrder(orderId);
-                if (fullOrder) {
-                    setOrders(prev => {
-                        const index = prev.findIndex(o => o.id === orderId);
-                        if (index !== -1) {
-                            const newOrders = [...prev];
-                            newOrders[index] = fullOrder;
-                            return newOrders;
-                        }
-                        return [fullOrder, ...prev]; // Add new order to the top
-                    });
-                } else { // Order might have been deleted
-                    setOrders(prev => prev.filter(o => o.id !== orderId));
-                }
+        const handleOrderRelatedChange = (payload: any) => {
+             // When an order changes, just reload the first page.
+            // This is simpler and more robust than trying to merge changes,
+            // especially with pagination where the new/updated item might not
+            // even be on the currently displayed page.
+            if (!isOrderLoading) {
+              loadOrders(filters, 0, false);
             }
         };
 
@@ -300,7 +330,7 @@ export const useAppData = (user: User | undefined) => {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user, fetchFullOrder]);
+    }, [user, fetchFullOrder, filters, isOrderLoading, loadOrders]);
 
     // Dedicated real-time subscription for team chat for improved stability and error handling
     useEffect(() => {
