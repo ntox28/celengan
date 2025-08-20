@@ -1,7 +1,8 @@
 
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import html2canvas from 'html2canvas';
-import { Customer, CustomerLevel, Bahan, Order, Payment, PaymentStatus, ProductionStatus, Employee, User as AuthUser, Bank, Finishing, OrderStatus } from '../../lib/supabaseClient';
+import { Customer, CustomerLevel, Bahan, Order, Payment, PaymentStatus, ProductionStatus, Employee, User as AuthUser, Bank, Finishing, OrderStatus, supabase, OrderItem } from '../../lib/supabaseClient';
 import PrintIcon from '../icons/PrintIcon';
 import WhatsAppIcon from '../icons/WhatsAppIcon';
 import ImageIcon from '../icons/ImageIcon';
@@ -17,6 +18,11 @@ import TransactionReport from './TransactionReport';
 import NotaGambar from './NotaGambar';
 import UsersGroupIcon from '../icons/UsersGroupIcon';
 import CustomerReport from './CustomerReport';
+import DocumentReportIcon from '../icons/DocumentReportIcon';
+import ChevronDownIcon from '../icons/ChevronDownIcon';
+import DownloadIcon from '../icons/DownloadIcon';
+
+declare const XLSX: any;
 
 interface TransactionManagementProps {
     orders: Order[];
@@ -31,7 +37,7 @@ interface TransactionManagementProps {
     loadMoreOrders: () => void;
     hasMoreOrders: boolean;
     isOrderLoading: boolean;
-    filters: { customerId: string; startDate: string; endDate: string; paymentStatus: string; };
+    filters: { customerId: string; startDate: string; endDate: string; paymentStatus: string; searchQuery: string; };
     setFilters: React.Dispatch<React.SetStateAction<any>>;
 }
 
@@ -64,7 +70,7 @@ const getOrderStatusColor = (status: OrderStatus) => {
 };
 
 
-const getPriceForCustomer = (bahan: Bahan, level: CustomerLevel): number => {
+const getPriceForCustomer = (bahan: Bahan | { harga_end_customer: number, harga_retail: number, harga_grosir: number, harga_reseller: number, harga_corporate: number }, level: CustomerLevel): number => {
     switch (level) {
         case 'End Customer': return bahan.harga_end_customer;
         case 'Retail': return bahan.harga_retail;
@@ -103,6 +109,9 @@ const TransactionManagement: React.FC<TransactionManagementProps> = (props) => {
     const notaGambarRef = useRef<HTMLDivElement>(null);
     const strukRef = useRef<HTMLDivElement>(null);
     const actionMenuRef = useRef<HTMLDivElement>(null);
+    const exportMenuRef = useRef<HTMLDivElement>(null);
+    const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
     const { addToast } = useToast();
     
     const [printableContent, setPrintableContent] = useState<React.ReactNode | null>(null);
@@ -195,12 +204,15 @@ const TransactionManagement: React.FC<TransactionManagementProps> = (props) => {
             if (actionMenuRef.current && !actionMenuRef.current.contains(event.target as Node)) {
                 setIsActionMenuOpen(null);
             }
+            if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+                setIsExportMenuOpen(false);
+            }
         }
         document.addEventListener("mousedown", handleClickOutside);
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
-    }, [actionMenuRef]);
+    }, [actionMenuRef, exportMenuRef]);
 
     const handleFilterChange = (name: keyof typeof filters, value: string) => {
         setFilters((prev: any) => ({ ...prev, [name]: value }));
@@ -506,6 +518,100 @@ const TransactionManagement: React.FC<TransactionManagementProps> = (props) => {
         setIsCustomerReportModalOpen(false);
     };
 
+    const handlePrintReport = () => {
+        setPrintableContent(
+            <TransactionReport
+                orders={transactions}
+                customers={customers}
+                bahanList={bahanList}
+                calculateTotal={calculateTotal}
+                getPriceForCustomer={getPriceForCustomer}
+                formatCurrency={formatCurrency}
+            />
+        );
+    };
+    
+    const handleExportToExcel = async () => {
+        addToast('Mempersiapkan data untuk ekspor...', 'info');
+        setIsExporting(true);
+        
+        try {
+            let query = supabase.from('orders').select(`
+                tanggal, no_nota,
+                customers ( name, level ),
+                order_items ( deskripsi_pesanan, panjang, lebar, qty, bahan ( name, harga_end_customer, harga_retail, harga_grosir, harga_reseller, harga_corporate ) )
+            `)
+            .in('status_pesanan', ['Waiting', 'Proses', 'Ready', 'Delivered']);
+            
+            if (filters.customerId !== 'all') query = query.eq('pelanggan_id', Number(filters.customerId));
+            if (filters.startDate) query = query.gte('tanggal', filters.startDate);
+            if (filters.endDate) query = query.lte('tanggal', filters.endDate);
+            if (filters.paymentStatus !== 'all') query = query.eq('status_pembayaran', filters.paymentStatus as PaymentStatus);
+            if (filters.searchQuery) query = query.ilike('no_nota', `%${filters.searchQuery}%`);
+
+            const { data: allFilteredOrders, error } = await query;
+            
+            if (error) throw error;
+            
+            const dataToExport = (allFilteredOrders as any[]).flatMap(order => {
+                const customer = order.customers;
+                if (!customer) return [];
+
+                return order.order_items.map((item: any) => {
+                    const bahan = item.bahan;
+                    const price = bahan ? getPriceForCustomer(bahan, customer.level) : 0;
+                    const itemArea = (item.panjang || 0) > 0 && (item.lebar || 0) > 0 ? (item.panjang || 1) * (item.lebar || 1) : 1;
+                    const itemTotal = Math.round(price * itemArea * item.qty);
+                    
+                    return {
+                        'Tanggal': new Date(order.tanggal).toLocaleDateString('id-ID'),
+                        'No.Nota': order.no_nota,
+                        'Nama Pelanggan': customer.name,
+                        'Deskripsi': item.deskripsi_pesanan || '-',
+                        'Bahan': bahan?.name || 'N/A',
+                        'Panjang (m)': item.panjang || 0,
+                        'Lebar (m)': item.lebar || 0,
+                        'Qty': item.qty,
+                        'Total': itemTotal
+                    };
+                });
+            });
+            
+            if (dataToExport.length === 0) {
+                addToast('Tidak ada data untuk diekspor sesuai filter.', 'info');
+                return;
+            }
+
+            const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Transaksi");
+            
+            const colWidths = Object.keys(dataToExport[0]).map(key => ({
+                wch: Math.max(key.length, ...dataToExport.map(row => String((row as any)[key]).length)) + 2
+            }));
+            worksheet['!cols'] = colWidths;
+            
+            const range = XLSX.utils.decode_range(worksheet['!ref']!);
+            for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+                const cell_address = { c: 8, r: R }; 
+                const cell_ref = XLSX.utils.encode_cell(cell_address);
+                if(worksheet[cell_ref]) {
+                    worksheet[cell_ref].t = 'n';
+                    worksheet[cell_ref].z = '"Rp"#,##0';
+                }
+            }
+            
+            XLSX.writeFile(workbook, `Laporan_Transaksi_${new Date().toISOString().split('T')[0]}.xlsx`);
+            addToast('Laporan berhasil diekspor ke Excel.', 'success');
+
+        } catch (error: any) {
+            addToast(`Gagal mengekspor data: ${error.message}`, 'error');
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+
     const kembalianBulk = newBulkPaymentAmount > totalUnpaidAmount ? newBulkPaymentAmount - totalUnpaidAmount : 0;
 
     return (
@@ -552,25 +658,30 @@ const TransactionManagement: React.FC<TransactionManagementProps> = (props) => {
                             <UsersGroupIcon className="w-5 h-5" />
                             <span className="hidden sm:inline">Laporan Pelanggan</span>
                         </button>
-                        <button
-                            onClick={() => {
-                                setPrintableContent(
-                                    <TransactionReport
-                                        orders={transactions}
-                                        customers={customers}
-                                        bahanList={bahanList}
-                                        calculateTotal={calculateTotal}
-                                        getPriceForCustomer={getPriceForCustomer}
-                                        formatCurrency={formatCurrency}
-                                    />
-                                );
-                            }}
-                            className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300 flex items-center gap-2"
-                            title="Cetak Laporan Transaksi"
-                        >
-                            <PrintIcon className="w-5 h-5" />
-                            <span className="hidden sm:inline">Cetak Laporan</span>
-                        </button>
+                        <div className="relative" ref={exportMenuRef}>
+                            <button
+                                onClick={() => setIsExportMenuOpen(prev => !prev)}
+                                disabled={isExporting}
+                                className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300 flex items-center gap-2 disabled:bg-cyan-400"
+                                title="Cetak atau Ekspor Laporan"
+                            >
+                                <DocumentReportIcon className="w-5 h-5" />
+                                <span className="hidden sm:inline">{isExporting ? 'Mengekspor...' : 'Laporan'}</span>
+                                {!isExporting && <ChevronDownIcon className="w-4 h-4" />}
+                            </button>
+                            {isExportMenuOpen && (
+                                <div className="absolute right-0 mt-2 w-60 origin-top-right bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 divide-y divide-slate-100 dark:divide-slate-600 rounded-md shadow-lg z-20 focus:outline-none">
+                                    <div className="py-1">
+                                        <button onClick={()=>{ handlePrintReport(); setIsExportMenuOpen(false);}} className="flex items-center w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600">
+                                            <PrintIcon className="w-5 h-5 mr-3"/>Cetak Laporan (PDF)
+                                        </button>
+                                        <button onClick={()=>{ handleExportToExcel(); setIsExportMenuOpen(false);}} className="flex items-center w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600">
+                                            <DownloadIcon className="w-5 h-5 mr-3"/>Ekspor ke Excel (.xlsx)
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
@@ -588,6 +699,8 @@ const TransactionManagement: React.FC<TransactionManagementProps> = (props) => {
                     filters={filters as any}
                     onFilterChange={handleFilterChange as any}
                     onReset={handleResetFilters}
+                    showSearch={true}
+                    searchPlaceholder="Cari No. Nota..."
                 />
 
                 {transactions.length > 0 ? (
@@ -682,6 +795,7 @@ const TransactionManagement: React.FC<TransactionManagementProps> = (props) => {
 
 
                 {isModalOpen && selectedOrder && (() => {
+                    const customer = customers.find(c => c.id === selectedOrder.pelanggan_id);
                     const totalTagihan = calculateTotal(selectedOrder);
                     const totalDibayar = calculateTotalPaid(selectedOrder);
                     const sisaTagihan = Math.max(0, totalTagihan - totalDibayar);
@@ -691,10 +805,48 @@ const TransactionManagement: React.FC<TransactionManagementProps> = (props) => {
                         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50" onClick={handleCloseModal}>
                             <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-2xl p-6 sm:p-8 m-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
                                 <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2 flex-shrink-0">Proses Pembayaran</h3>
+                                <p className="text-slate-500 dark:text-slate-400 mb-1 flex-shrink-0">Pelanggan: <span className="font-semibold text-slate-700 dark:text-slate-200">{customer?.name || 'N/A'}</span></p>
                                 <p className="text-slate-500 dark:text-slate-400 mb-6 flex-shrink-0">No. Nota: <span className="font-semibold text-slate-700 dark:text-slate-200">{selectedOrder.no_nota}</span></p>
     
                                 <div className="flex-1 overflow-y-auto -mr-4 pr-4 space-y-6">
-                                    {/* Summary */}
+                                    {/* Order Summary */}
+                                    <div>
+                                        <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-2">Ringkasan Order</h4>
+                                        <div className="max-h-40 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg">
+                                            <table className="w-full text-sm">
+                                                <thead className="text-xs text-slate-500 dark:text-slate-400 uppercase bg-slate-50 dark:bg-slate-700/50 sticky top-0">
+                                                    <tr>
+                                                        <th className="px-4 py-2 text-left">Deskripsi</th>
+                                                        <th className="px-4 py-2 text-left">Bahan</th>
+                                                        <th className="px-4 py-2 text-center">Ukuran</th>
+                                                        <th className="px-4 py-2 text-center">Qty</th>
+                                                        <th className="px-4 py-2 text-right">Total</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                                                    {selectedOrder.order_items.map(item => {
+                                                        const bahan = bahanList.find(b => b.id === item.bahan_id);
+                                                        if (!bahan || !customer) return null;
+                                                        const price = getPriceForCustomer(bahan, customer.level);
+                                                        const itemArea = (item.panjang || 0) > 0 && (item.lebar || 0) > 0 ? (item.panjang || 1) * (item.lebar || 1) : 1;
+                                                        const itemTotal = price * itemArea * item.qty;
+                                                        const ukuran = (item.panjang || 0) > 0 && (item.lebar || 0) > 0 ? `${item.panjang}m x ${item.lebar}m` : '-';
+
+                                                        return (
+                                                            <tr key={item.id}>
+                                                                <td className="px-4 py-2">{item.deskripsi_pesanan || '-'}</td>
+                                                                <td className="px-4 py-2">{bahan.name}</td>
+                                                                <td className="px-4 py-2 text-center">{ukuran}</td>
+                                                                <td className="px-4 py-2 text-center">{item.qty}</td>
+                                                                <td className="px-4 py-2 text-right font-medium">{formatCurrency(itemTotal)}</td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                    {/* Summary Cards */}
                                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
                                         <div>
                                             <p className="text-sm text-slate-500 dark:text-slate-400">Total Tagihan</p>

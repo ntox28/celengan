@@ -50,29 +50,16 @@ const Struk = forwardRef<HTMLDivElement, StrukProps>(
     <div ref={ref} className="bg-white text-black font-sans text-[10px] leading-tight uppercase">
       {/* Header */}
       <div className="text-center" style={{ paddingTop: '4mm', paddingBottom: '2mm' }}>
-        <div className="font-bold">---------- ULAS KAMI ----------</div>
-  <img 
-    src="https://xkvgflhjcnkythytbkuj.supabase.co/storage/v1/object/public/publik/maps%20nala%20media.svg" 
-    alt="Logo NALAMEDIA" 
-    style={{ 
-      width: '54mm',       // sedikit kecil dari sebelumnya (56mm)
-      height: 'auto', 
-      marginBottom: '1mm', // jarak pas ke judul
-      display: 'inline-block',
-      objectFit: 'contain',
-      overflow: 'visible',
-    }} 
-  />
+         
   <h1 className="font-bold text-lg leading-tight" style={{ marginTop: 0, marginBottom: 0 }}>
     NALAMEDIA
   </h1>
 </div>
 
       <hr className="border-dashed border-t border-black my-0.5" />
-      <div className="text-center text-[10px] space-y-0.5 pt-0">
+      <div className="text-center text-10pt { font-size: 10pt; } space-y-0.5 pt-0">
         <div>Jl. Prof. Moh. Yamin</div>
-        <div>Cerbonan, Karanganyar</div>
-        <div>(Timur Stadion 45)</div>
+        <div>Cerbonan, Karanganyar</div>        
         <div>Whatsapp: 0813-9872-7722</div>
         <div>Email: nalamedia.kra@gmail.com</div>
       </div>
@@ -142,9 +129,7 @@ const Struk = forwardRef<HTMLDivElement, StrukProps>(
       <hr className="border-dashed border-black my-2" />
 
       <div className="text-center text-[9px] space-y-0.5 pt-1">
-        <div className="font-bold">PERHATIAN</div>
-        <div>Mohon barang</div>
-        <div>dicek terlebih dahulu</div>
+        <div className="font-bold">PERHATIAN</div>        
         <div className="font-bold">Komplain lebih dari</div>
         <div className="font-bold">1 hari tidak kami layani</div>
       </div>
